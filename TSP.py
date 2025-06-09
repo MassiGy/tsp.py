@@ -35,17 +35,45 @@ class Instance:
     def __init__ (self, name, n):
         self.name = name
         self.nb_sommets = n
-        self.reset()
+        #self.init()
     
     def size (self):
         return self.nb_sommets
     
-    def reset (self):
+    def init (self):
         self.generateNodes()
         self.computeDistances()
 
     def generateNodes (self):
         self.sommets = [Sommet(random.uniform(0,100), random.uniform(0,100)) for i in range(self.nb_sommets)]
+
+    @classmethod
+    def fromFile(classref, filename):
+        with open(filename, 'r') as f:
+            lines = f.readlines()
+        
+        name = str(filename).removesuffix(".txt")
+        nb_sommets = int(lines[0].strip())
+        instance = classref(name, nb_sommets)
+        instance.sommets = []
+        
+
+        rest = lines[1:]
+        for line in rest:
+            parts = line.strip().split()
+
+            # format should be [x y]
+            if len(parts) != 2:
+                continue
+
+            x, y = float(parts[0]), float(parts[1])
+            s = Sommet(x, y)
+            instance.sommets.append(s)
+            s.affiche()
+        
+
+        instance.computeDistances()
+        return instance
     
     def computeDistances (self):
         self.dist = [[0.0] * self.nb_sommets for i in range(self.nb_sommets)]
@@ -111,7 +139,7 @@ class Solution:
         self.valeur = val
         
     def affiche (self):
-        print('solution \'{}\': {} -> val = {:.2f} temps = {:.2f} s'.format(self.name, self.sequence, self.valeur, self.temps))
+        print('solution \'{}\': {} -> val = {:.6f} temps = {:.6f} s'.format(self.name, self.sequence, self.valeur, self.temps))
 
     def plot (self):
         plt.figure()
@@ -253,20 +281,38 @@ class Heuristiques:
         return record
 
 
+    # TODO: update this method to use the same logic as the others,
+    #  meaning: 
+    #  * start by initializing a record:Solution
+    #  * do your logic,
+    #  * save the result in the record 
+    #  * return the record.
+
+    # But, do we really need to change that since it is used 
+    # in the localsearch function and not directly as a hurestic
+    # it is more of a helper method then a hurestic
+    
+    # it is like the regen method in the simulated annealing algo
     def mvt2Opt (self, s: Solution):
         seq = s.getSequence()
+        s.affiche()
         dist = self.instance.dist
         for i in range(0,len(seq)-2):
             for j in range(i+1, len(seq)-1):
+
                 if i == 0 and j == len(seq)-2:
                     continue
+                
                 delta = dist[seq[i-1]][seq[i]] + dist[seq[j]][seq[j+1]] - dist[seq[i-1]][seq[j]] - dist[seq[i]][seq[j+1]]
+                
                 if delta > 0:
                     while i<j:
                         seq[i],seq[j] = seq[j], seq[i]
                         i += 1
                         j -= 1
+                    
                     s.setSequence(seq)
+                    s.affiche()
                     return True
         return False
     
@@ -310,9 +356,8 @@ class Heuristiques:
 if __name__ == '__main__':
     # creation de l'instance: 10 sommets
     random.seed(0)
-    inst = Instance('random',30)
-    # inst.affiche()
-    inst.plot()
+    inst = Instance.fromFile("./data/instance1.txt")
+    
     
     # generation heuristique des solutions
     heur = Heuristiques(inst)
@@ -358,10 +403,10 @@ if __name__ == '__main__':
     # s5.affiche()
     # s5.plot()
     
-    methodes = [heur.ilp,heur.compute_triviale, heur.compute_random, heur.compute_nearest, heur.multistart, heur.multistart_LS]
+    methodes = [heur.compute_triviale, heur.compute_random, heur.compute_nearest, heur.mvt2Opt, heur.multistart, heur.multistart_LS]
     for m in methodes:
         debut = time.time()
-        sol = m()
+        sol:Solution = m()
         duree = time.time() - debut
         sol.setTemps(duree)
         sol.affiche()
