@@ -522,7 +522,7 @@ class Heuristiques:
 if __name__ == '__main__':
 
     random.seed(0)
-    inst = Instance.fromFile("./data/instance2.txt")
+    inst = Instance.fromFile("./data/instance1.txt")
     inst.plot()
     hoginst = inst.redhog(15)
     hoginst.plot()
