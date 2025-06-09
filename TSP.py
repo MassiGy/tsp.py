@@ -96,7 +96,7 @@ class Instance:
         self.maxdist = -float('inf')
         self.mindist = float('inf')
  
-        self.dist = [[0.0] * self.nb_sommets for i in range(self.nb_sommets)]
+        self.dist = [[0.0] * self.nb_sommets for _ in range(self.nb_sommets)]
         for si in self.sommets:
             for sj in self.sommets:
                 delta_x = si.getX() - sj.getX()
@@ -121,8 +121,10 @@ class Instance:
 
     # reduce to hubs only graph
     def redhog(self, hubradius):
+       
         print(f"maxdist={self.maxdist}, mindist={self.mindist}\n")
         toHubDist = mapval(hubradius, 0, 100, self.mindist, self.maxdist)
+        print(f"toHubDist={toHubDist}")
         
         hubs:list[Sommet] = []
         hubdeg = 4
@@ -146,21 +148,20 @@ class Instance:
                 if self.dist[siid][sjid] <= toHubDist:
                     n2ns[si].append(sj)
                 
-     
+        Instance.visualize_hubs(n2ns, hubs)
         for n in n2ns:
             if len(n2ns[n]) >= hubdeg:
                 # here we consider n as a hub
                 hubs.append(n)
 
-                # make sure that n is no longer reachable
-                # by other hubs
+                
                 for _n in n2ns:
                     if _n.getId() != n.getId() and n in n2ns[_n]:
                         n2ns[_n].remove(n)
 
                 
         Instance.visualize_hubs(n2ns, hubs)
-        
+        """
         # reduce the overlaps 
         to_remove = set()
         for si in hubs:
@@ -202,7 +203,7 @@ class Instance:
 
         hubs = [h for h in hubs if h not in to_remove]
         Instance.visualize_hubs(n2ns, hubs)     
-       
+        """
 
         hubsClustersNodes:list[Sommet] = hubs.copy()
         for n in hubs:
@@ -214,9 +215,6 @@ class Instance:
         hubs.extend(outliers)
 
 
-        
-
-
         for i in range(len(hubs)):
             # update the ids for the hubs
             n = hubs[i]
@@ -226,9 +224,6 @@ class Instance:
         Instance.visualize_hubs(n2ns, hubs)     
             
 
-        
-
-       
         # now that we have the hubs, create a new instance
         # using those hubs as nodes
         hoginst = Instance(str("redhog "+self.name), len(hubs), hubs)
@@ -241,10 +236,10 @@ class Instance:
     
     @classmethod
     def visualize_hubs(cls, n2ns: dict, hubs: list):
-        plt.figure(figsize=(10, 10))
+        plt.figure()
         
         # Plot all nodes
-        for node, neighbors in n2ns.items():
+        for node in n2ns:
             plt.scatter(node.x, node.y, color='grey', s=30, zorder=1)
         
         # Highlight hubs and their connections
@@ -260,7 +255,7 @@ class Instance:
         plt.ylabel("Y")
         plt.grid(True)
         plt.axis("equal")
-        plt.show()
+        plt.draw()
 
     def affiche (self):
         print('{} sommets: '.format(self.nb_sommets))
@@ -284,7 +279,7 @@ class Instance:
         y = [elt.getY() for elt in self.sommets]
         plt.scatter(x,y)
         plt.grid(True)
-        plt.show()
+        plt.draw()
 
 
 class Solution:
@@ -533,57 +528,22 @@ class Heuristiques:
 
 
 if __name__ == '__main__':
-    # creation de l'instance: 10 sommets
+
     random.seed(0)
     inst = Instance.fromFile("./data/instance2.txt")
     inst.plot()
-    inst.redhog(20).plot()
+    hoginst = inst.redhog(10)
+    hoginst.plot()
+
+    plt.show()
     
+   
+  
+    """
     # generation heuristique des solutions
     heur = Heuristiques(inst)
  
     
-    # debut = time.time()
-    # s1 = heur.compute_triviale()
-    # duree = time.time() - debut
-    # print('heuristique triviale: duree = {:.3f} s'.format(duree))
-    # s1.affiche()
-    
-    # debut = time.time()
-    # s2 = heur.compute_random()
-    # duree = time.time() - debut
-    # print('heuristique random: duree = {:.3f} s'.format(duree))
-    # s2.affiche()
-    
-    # debut = time.time()
-    # s3 = heur.compute_nearest()
-    # duree = time.time() - debut
-    # print('heuristique plus proche voisins: duree = {:.3f} s'.format(duree))
-    # s3.affiche()
-    # s3.plot()
-    
-    # debut = time.time()
-    # heur.localSearch(s3)
-    # duree = time.time() - debut
-    # print('recherche locale: duree = {:.3f} s'.format(duree))
-    # s3.affiche()
-    # s3.plot()
-    
-    # debut = time.time()
-    # s4, evolution = heur.multistart(20)
-    # duree = time.time() - debut
-    # print('multistart: duree = {:.3f} s'.format(duree))
-    # s4.affiche()
-    # s4.plot()
-    # print('evolution = ', evolution)
-    
-    # debut = time.time()
-    # s5 = heur.compute_enumerate()
-    # duree = time.time() - debut
-    # print('multistart: duree = {:.3f} s'.format(duree))
-    # s5.affiche()
-    # s5.plot()
-    """
     methodes = [heur.compute_triviale, heur.compute_random, heur.compute_nearest, heur.mvt2Opt, heur.multistart, heur.multistart_LS]
     for m in methodes:
         debut = time.time()
