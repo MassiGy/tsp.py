@@ -8,6 +8,12 @@ import matplotlib.pyplot as plt
 from pulp import LpProblem, LpVariable, LpMinimize, lpSum, PULP_CBC_CMD
 
 
+def mapval(val, inMin, inMax, outMin, outMax):
+    return outMin + ((float)(val-inMin)/(inMax-inMin)) * (outMax-outMin)
+
+
+
+
 class Sommet:
     cpt_sommet = 0
     
@@ -21,26 +27,37 @@ class Sommet:
     def getId (self):
         return self.id
     
+    def setId (self, id):
+        self.id = id
+    
     def getX (self):
         return self.x
     
     def getY (self):
         return self.y
     
+    def str(self):
+        return '({}:{:.2f},{:.2f})'.format(self.id,self.x,self.y)
+    
+
     def affiche (self):
-        print('({}:{:.2f},{:.2f})'.format(self.id,self.x,self.y))
+        print(self.str())
+
+
 
 
 class Instance:
-    def __init__ (self, name, n):
+    def __init__ (self, name, n, sommets=[]):
         self.name = name
         self.nb_sommets = n
+        self.sommets = sommets
         #self.init()
     
     def size (self):
         return self.nb_sommets
     
     def init (self):
+        assert self.sommets == [] # to not override
         self.generateNodes()
         self.computeDistances()
 
@@ -76,13 +93,175 @@ class Instance:
         return instance
     
     def computeDistances (self):
+        self.maxdist = -float('inf')
+        self.mindist = float('inf')
+ 
         self.dist = [[0.0] * self.nb_sommets for i in range(self.nb_sommets)]
         for si in self.sommets:
             for sj in self.sommets:
                 delta_x = si.getX() - sj.getX()
                 delta_y = si.getY() - sj.getY()
                 self.dist[si.getId()][sj.getId()] = math.sqrt(delta_x ** 2 + delta_y ** 2)
+
+                dist = self.dist[si.getId()][sj.getId()]
+                
+                # this is the init
+                if self.maxdist == -1.0 and si.getId() != sj.getId():
+                    self.maxdist = dist
+                
+                if self.mindist == -1.0 and si.getId() != sj.getId():
+                    self.mindist = dist
+
+                if self.maxdist < dist and si.getId() != sj.getId():
+                    self.maxdist = dist
+            
+                if self.mindist > dist and si.getId() != sj.getId():
+                    self.mindist = dist
+
+
+    # reduce to hubs only graph
+    def redhog(self, hubradius):
+        print(f"maxdist={self.maxdist}, mindist={self.mindist}\n")
+        toHubDist = mapval(hubradius, 0, 100, self.mindist, self.maxdist)
+        
+        hubs:list[Sommet] = []
+        hubdeg = 4
+       
+        # these are the nodes that are not wihtin a concentration of nodes (no hubs nearby)
+        outliers: list[Sommet] = []
+        
+        # node2nodes will keep track of all the nodes that are within a distance
+        # d < toHubDist of each node n
+        n2ns:dict[Sommet, list[Sommet]] = dict()
+
+        # iterate through the distances
+        for si in self.sommets:
+            n2ns[si] = []
+            for sj in self.sommets:
+                siid, sjid= si.getId(),sj.getId()
+                
+                if siid == sjid:
+                    continue
+
+                if self.dist[siid][sjid] <= toHubDist:
+                    n2ns[si].append(sj)
+                
+     
+        for n in n2ns:
+            if len(n2ns[n]) >= hubdeg:
+                # here we consider n as a hub
+                hubs.append(n)
+
+                # make sure that n is no longer reachable
+                # by other hubs
+                for _n in n2ns:
+                    if _n.getId() != n.getId() and n in n2ns[_n]:
+                        n2ns[_n].remove(n)
+
+                
+        Instance.visualize_hubs(n2ns, hubs)
+        
+        # reduce the overlaps 
+        to_remove = set()
+        for si in hubs:
+            for sj in hubs:
+                siid, sjid= si.getId(),sj.getId()
+                
+                if siid == sjid:
+                    continue
+
+                l1 = len(n2ns[si])
+                l2 = len(n2ns[sj])
+
+                if sj in n2ns[si] or si in n2ns[sj]: 
+                    if l1 > l2:
+                        n2ns[si] = list(set(n2ns[si]) | set(n2ns[sj]))
+                        to_remove.add(sj)
+                    else: 
+                        n2ns[sj] = list(set(n2ns[sj]) | set(n2ns[si]))
+                        to_remove.add(si)
+
+                    if si in n2ns[si]: n2ns[si].remove(si)
+                    if sj in n2ns[sj]: n2ns[sj].remove(sj)
+
+                else:
+                    overlap = list(set(n2ns[si]) & set(n2ns[sj]))
+                    l3 = len(overlap)
+
+                    for s in overlap:
+                        sid = s.getId()
+                        if self.dist[siid][sid] <= self.dist[sjid][sid]:
+                            if l2-1 >= hubdeg-1: 
+                                n2ns[sj].remove(s)
+                                l2 -=1
+                        else:
+                            if l1 -1 >= hubdeg-1:
+                                n2ns[si].remove(s)
+                                l1 -=1
+        
+
+        hubs = [h for h in hubs if h not in to_remove]
+        Instance.visualize_hubs(n2ns, hubs)     
+       
+
+        hubsClustersNodes:list[Sommet] = hubs.copy()
+        for n in hubs:
+            hubsClustersNodes.extend(n2ns[n])
+        
+        hubsClustersNodes = set(hubsClustersNodes)
+
+        outliers = list(set(self.sommets) - set(hubsClustersNodes))
+        hubs.extend(outliers)
+
+
+        
+
+
+        for i in range(len(hubs)):
+            # update the ids for the hubs
+            n = hubs[i]
+            n.setId(i)
+
+
+        Instance.visualize_hubs(n2ns, hubs)     
+            
+
+        
+
+       
+        # now that we have the hubs, create a new instance
+        # using those hubs as nodes
+        hoginst = Instance(str("redhog "+self.name), len(hubs), hubs)
+        hoginst.computeDistances()
+
+
+        return hoginst
     
+
+    
+    @classmethod
+    def visualize_hubs(cls, n2ns: dict, hubs: list):
+        plt.figure(figsize=(10, 10))
+        
+        # Plot all nodes
+        for node, neighbors in n2ns.items():
+            plt.scatter(node.x, node.y, color='grey', s=30, zorder=1)
+        
+        # Highlight hubs and their connections
+        for hub in hubs:
+            plt.scatter(hub.x, hub.y, color='red', s=100, zorder=3)
+            
+            for connected_node in n2ns[hub]:
+                plt.plot([hub.x, connected_node.x], [hub.y, connected_node.y], 
+                        color='blue', linewidth=1, zorder=2)
+
+        plt.title("Hub-Node Connections")
+        plt.xlabel("X")
+        plt.ylabel("Y")
+        plt.grid(True)
+        plt.axis("equal")
+        plt.show()
+
     def affiche (self):
         print('{} sommets: '.format(self.nb_sommets))
         for s in self.sommets:
@@ -356,11 +535,13 @@ class Heuristiques:
 if __name__ == '__main__':
     # creation de l'instance: 10 sommets
     random.seed(0)
-    inst = Instance.fromFile("./data/instance1.txt")
-    
+    inst = Instance.fromFile("./data/instance2.txt")
+    inst.plot()
+    inst.redhog(20).plot()
     
     # generation heuristique des solutions
     heur = Heuristiques(inst)
+ 
     
     # debut = time.time()
     # s1 = heur.compute_triviale()
@@ -402,7 +583,7 @@ if __name__ == '__main__':
     # print('multistart: duree = {:.3f} s'.format(duree))
     # s5.affiche()
     # s5.plot()
-    
+    """
     methodes = [heur.compute_triviale, heur.compute_random, heur.compute_nearest, heur.mvt2Opt, heur.multistart, heur.multistart_LS]
     for m in methodes:
         debut = time.time()
@@ -414,3 +595,4 @@ if __name__ == '__main__':
         print('evolution = ', heur.evolution)
         if len(heur.evolution) > 0:
             heur.plot()
+    """
