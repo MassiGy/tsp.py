@@ -99,23 +99,25 @@ class Instance:
         self.dist = [[0.0] * self.nb_sommets for _ in range(self.nb_sommets)]
         for si in self.sommets:
             for sj in self.sommets:
+                siid, sjid= si.getId(),sj.getId()
+
                 delta_x = si.getX() - sj.getX()
                 delta_y = si.getY() - sj.getY()
-                self.dist[si.getId()][sj.getId()] = math.sqrt(delta_x ** 2 + delta_y ** 2)
+                self.dist[siid][sjid] = math.sqrt(delta_x ** 2 + delta_y ** 2)
 
-                dist = self.dist[si.getId()][sj.getId()]
+                dist = self.dist[siid][sjid]
                 
                 # this is the init
-                if self.maxdist == -1.0 and si.getId() != sj.getId():
+                if self.maxdist == -1.0:
                     self.maxdist = dist
                 
-                if self.mindist == -1.0 and si.getId() != sj.getId():
+                if self.mindist == -1.0:
                     self.mindist = dist
 
-                if self.maxdist < dist and si.getId() != sj.getId():
+                if self.maxdist < dist:
                     self.maxdist = dist
             
-                if self.mindist > dist and si.getId() != sj.getId():
+                if self.mindist > dist and siid != sjid:
                     self.mindist = dist
 
 
@@ -127,7 +129,7 @@ class Instance:
         print(f"toHubDist={toHubDist}")
         
         hubs:list[Sommet] = []
-        hubdeg = 4
+        hubdeg = 2
        
         # these are the nodes that are not wihtin a concentration of nodes (no hubs nearby)
         outliers: list[Sommet] = []
@@ -148,34 +150,36 @@ class Instance:
                 if self.dist[siid][sjid] <= toHubDist:
                     n2ns[si].append(sj)
                 
-        Instance.visualize_hubs(n2ns, hubs)
-        for n in n2ns:
-            if len(n2ns[n]) >= hubdeg:
-                # here we consider n as a hub
+        # Find hub candidates, IMPORTANT: it is crucial to sort them
+        # by degree in a decending order, this way the selection will 
+        # be much more suitable for the end result (reduced graph)
+        candidates = sorted(n2ns.items(), key=lambda item: -len(item[1]))
+        for n, neighbors in candidates:
+            if len(neighbors) >= hubdeg and n not in hubs:
                 hubs.append(n)
-
                 
-                for _n in n2ns:
-                    if _n.getId() != n.getId() and n in n2ns[_n]:
-                        n2ns[_n].remove(n)
-
                 
         Instance.visualize_hubs(n2ns, hubs)
-        """
-        # reduce the overlaps 
-        to_remove = set()
-        for si in hubs:
-            for sj in hubs:
-                siid, sjid= si.getId(),sj.getId()
-                
-                if siid == sjid:
-                    continue
+        
+        noChange = False
+        while noChange == False:        # reduce iteratively until g converges to a given state.
+            noChange = False
+            # reduce the overlaps 
+            to_remove = set()
+            for si in hubs:
+                for sj in hubs:
+                    siid, sjid= si.getId(),sj.getId()
+                    
+                    if siid == sjid or self.dist[siid][sjid] > toHubDist:
+                        continue
 
-                l1 = len(n2ns[si])
-                l2 = len(n2ns[sj])
+                    l1 = len(n2ns[si])
+                    l2 = len(n2ns[sj])
 
-                if sj in n2ns[si] or si in n2ns[sj]: 
-                    if l1 > l2:
+                    # IMPORTANT! since our hubs are sorted by degree in a 
+                    # desending order, prefer pushing to si's cluster first
+                    # thus the >= rather then just > is super important (3 hours for just that !)
+                    if l1 >= l2:
                         n2ns[si] = list(set(n2ns[si]) | set(n2ns[sj]))
                         to_remove.add(sj)
                     else: 
@@ -185,25 +189,13 @@ class Instance:
                     if si in n2ns[si]: n2ns[si].remove(si)
                     if sj in n2ns[sj]: n2ns[sj].remove(sj)
 
-                else:
-                    overlap = list(set(n2ns[si]) & set(n2ns[sj]))
-                    l3 = len(overlap)
+            
+            noChange =  len(to_remove) == 0
+            hubs = [h for h in hubs if h not in to_remove]
 
-                    for s in overlap:
-                        sid = s.getId()
-                        if self.dist[siid][sid] <= self.dist[sjid][sid]:
-                            if l2-1 >= hubdeg-1: 
-                                n2ns[sj].remove(s)
-                                l2 -=1
-                        else:
-                            if l1 -1 >= hubdeg-1:
-                                n2ns[si].remove(s)
-                                l1 -=1
         
-
-        hubs = [h for h in hubs if h not in to_remove]
         Instance.visualize_hubs(n2ns, hubs)     
-        """
+        
 
         hubsClustersNodes:list[Sommet] = hubs.copy()
         for n in hubs:
@@ -371,7 +363,7 @@ class Heuristiques:
         
         while len(available) != 0:
             best = None
-            dist = 200.0
+            dist = float('inf')
             for elt in available:
                 if self.instance.dist[current][elt] < dist:
                     dist = self.instance.dist[current][elt]
@@ -532,12 +524,11 @@ if __name__ == '__main__':
     random.seed(0)
     inst = Instance.fromFile("./data/instance2.txt")
     inst.plot()
-    hoginst = inst.redhog(10)
+    hoginst = inst.redhog(15)
     hoginst.plot()
 
     plt.show()
-    
-   
+
   
     """
     # generation heuristique des solutions

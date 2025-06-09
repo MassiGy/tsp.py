@@ -1,0 +1,9 @@
+AI USAGE BACKLOG::Massiles GHERNAOUT.
+
+Mon, Jun  9, 2025 11:16:09 PM
+
+I've used AI today to:
+* write the gen_instance_files.py.
+* help me debug the redhog routine. It is chatGPT that helped me with the ordering logic (it suggested to order them in decending order.)
+* I've used chatGPT to write the hubs visualiser.
+The rest was all done by hand.
