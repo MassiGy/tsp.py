@@ -447,18 +447,6 @@ class Heuristiques:
         return record
 
 
-    # TODO: update this method to use the same logic as the others,
-    #  meaning: 
-    #  * start by initializing a record:Solution
-    #  * do your logic,
-    #  * save the result in the record 
-    #  * return the record.
-
-    # But, do we really need to change that since it is used 
-    # in the localsearch function and not directly as a hurestic
-    # it is more of a helper method then a hurestic
-    
-    # it is like the regen method in the simulated annealing algo
     def mvt2Opt (self, s: Solution):
         seq = s.getSequence()
         s.affiche()
@@ -523,19 +511,19 @@ if __name__ == '__main__':
 
     random.seed(0)
     inst = Instance.fromFile("./data/instance1.txt")
-    inst.plot()
+   
     hoginst = inst.redhog(15)
-    hoginst.plot()
+
 
     plt.show()
 
   
-    """
+
     # generation heuristique des solutions
-    heur = Heuristiques(inst)
+    heur = Heuristiques(hoginst)
  
     
-    methodes = [heur.compute_triviale, heur.compute_random, heur.compute_nearest, heur.mvt2Opt, heur.multistart, heur.multistart_LS]
+    methodes = [heur.compute_triviale, heur.compute_random, heur.compute_nearest, heur.multistart, heur.multistart_LS]
     for m in methodes:
         debut = time.time()
         sol:Solution = m()
@@ -546,4 +534,4 @@ if __name__ == '__main__':
         print('evolution = ', heur.evolution)
         if len(heur.evolution) > 0:
             heur.plot()
-    """
+
