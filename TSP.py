@@ -88,7 +88,6 @@ class Instance:
             x, y = float(parts[0]), float(parts[1])
             s = Sommet(x, y)
             instance.sommets.append(s)
-            s.affiche()
         
 
         instance.computeDistances()
@@ -124,13 +123,15 @@ class Instance:
 
     # reduce to hubs only graph
     def redhog(self, hubradius):
-       
-        print(f"maxdist={self.maxdist}, mindist={self.mindist}\n")
+        
+        print(f"[metrics.redhog]: Reduce graph to hubs only graph, input graph # nodes={self.nb_sommets}")
+        print(f"[metrics.redhog]: maxdist={self.maxdist}, mindist={self.mindist}")
         toHubDist = mapval(hubradius, 0, 100, self.mindist, self.maxdist)
-        print(f"toHubDist={toHubDist}")
+        print(f"[metrics.redhog]: Node To Hub Distance Radius={toHubDist}")
         
         hubs:list[Sommet] = []
         hubdeg = 2
+        print(f"[metrics.redhog]: Hub Min Degree={hubdeg}")
        
         # these are the nodes that are not wihtin a concentration of nodes (no hubs nearby)
         outliers: list[Sommet] = []
@@ -160,7 +161,7 @@ class Instance:
                 hubs.append(n)
                 
                 
-        Instance.visualize_hubs(n2ns, hubs)
+        Instance.visualize_hubs(n2ns, hubs, name="(All potential hubs)")
         
         noChange = False
         while noChange == False:        # reduce iteratively until g converges to a given state.
@@ -195,16 +196,20 @@ class Instance:
             hubs = [h for h in hubs if h not in to_remove]
 
         
-        Instance.visualize_hubs(n2ns, hubs)     
+        Instance.visualize_hubs(n2ns, hubs, name="(Reduced hubs set - merging)")     
         
+        print(f"[metrics.redhog]: # hubs in input graph={len(hubs)}")
 
         hubsClustersNodes:list[Sommet] = hubs.copy()
         for n in hubs:
             hubsClustersNodes.extend(n2ns[n])
         
+        
         hubsClustersNodes = set(hubsClustersNodes)
-
+        
         outliers = list(set(self.sommets) - set(hubsClustersNodes))
+        print(f"[metrics.redhog]: # outliers in input graph={len(outliers)}. About to add them to the reduced graph nodes list.")
+        
         hubs.extend(outliers)
 
 
@@ -214,19 +219,22 @@ class Instance:
             n.setId(i)
 
 
-        Instance.visualize_hubs(n2ns, hubs)     
+        Instance.visualize_hubs(n2ns, hubs, name="(Hubs+Outliers - Final reduced Graph)")     
             
 
         # now that we have the hubs, create a new instance
         # using those hubs as nodes
         hoginst = Instance(str("redhog "+self.name), len(hubs), hubs)
         hoginst.computeDistances()
+        print(f"[metrics.redhog]: Reduced graph # nodes={len(hubs)}")
 
+        # show all our visualizations
+        plt.show()
 
         return hoginst
     
     @classmethod
-    def visualize_hubs(cls, n2ns: dict, hubs: list):
+    def visualize_hubs(cls, n2ns: dict, hubs: list, name=""):
         plt.figure()
         
         # Plot all nodes
@@ -241,7 +249,7 @@ class Instance:
                 plt.plot([hub.x, connected_node.x], [hub.y, connected_node.y], 
                         color='blue', linewidth=1, zorder=2)
 
-        plt.title("Hub-Node Connections")
+        plt.title("Hub-Node Connections " + str(name))
         plt.xlabel("X")
         plt.ylabel("Y")
         plt.grid(True)
@@ -331,7 +339,7 @@ class Heuristiques:
         self.instance = inst
         self.evolution = []
 
-    def plot (self):
+    def plot_evo (self):
         plt.figure()
         plt.title('evolution')
         plt.xlabel('temps (s)')
@@ -396,9 +404,8 @@ class Heuristiques:
         record.setTemps(duree)
         return record
 
-    # TODO: fix this implementation
-    def ilp(self):  # programmation linéaire en nombre entier. PLNE
-        record = Solution(self.instance, 'programmation linéaire en nombre entier. PLNE')
+    def ilp(self):  
+        record = Solution(self.instance, 'Integer LP')
 
         n = self.instance.nb_sommets
         prob = LpProblem('TSP', LpMinimize)
@@ -446,7 +453,6 @@ class Heuristiques:
         record.setSequence(tour)
         return record
 
-    # TODO: maybe update this routine so as the evolution won't be a single point
     def mvt2Opt (self, s: Solution):
         seq = s.getSequence()
         s.affiche()
@@ -620,21 +626,24 @@ class Heuristiques:
 if __name__ == '__main__':
 
     random.seed(0)
-    inst = Instance.fromFile("./data/instance3.txt")
-   
-    hoginst = inst.redhog(15)
+    filename = "./data/instance3.txt"
+    print(f"[metrics._main_]: About to load instance from file {filename}.")
+    inst = Instance.fromFile(filename)
+    print(f"[metrics._main_]: Loaded instance # nodes = {inst.nb_sommets}.")
+    print(f"[metrics._main_]: About to reduce loaded graph to Hubs only graph (redhog).")
 
-
-    plt.show()
-
+    proportion = 15
+    print(f"[metrics._main_]: Hub to Node radius set to {proportion}% of delta(mindist, maxdist).")
+    hoginst = inst.redhog(proportion)
   
 
     # generation heuristique des solutions
     heur = Heuristiques(hoginst)
  
     
-    methodes = [heur.compute_triviale, heur.compute_random, heur.compute_nearest, heur.multistart, heur.multistart_LS_2Opt, heur.multistart_LS_Swap, heur.multistart_LS_OrOpt, heur.recherche_tabou]
+    methodes = [heur.compute_triviale, heur.compute_random, heur.compute_nearest,heur.ilp, heur.multistart, heur.multistart_LS_2Opt, heur.multistart_LS_Swap, heur.multistart_LS_OrOpt, heur.recherche_tabou]
     for m in methodes:
+        print(f"\n[metrics._main_]: About to run the {m.__name__} strategy.")
         debut = time.time()
         sol:Solution = m()
         duree = time.time() - debut
@@ -643,5 +652,4 @@ if __name__ == '__main__':
         sol.plot()
         print('evolution = ', heur.evolution)
         if len(heur.evolution) > 0:
-            heur.plot()
-
+            heur.plot_evo()
