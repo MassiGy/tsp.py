@@ -122,7 +122,6 @@ class Instance:
                 if self.mindist > dist and siid != sjid:
                     self.mindist = dist
 
-
     # reduce to hubs only graph
     def redhog(self, hubradius):
        
@@ -225,8 +224,6 @@ class Instance:
 
 
         return hoginst
-    
-
     
     @classmethod
     def visualize_hubs(cls, n2ns: dict, hubs: list):
@@ -399,6 +396,7 @@ class Heuristiques:
         record.setTemps(duree)
         return record
 
+    # TODO: fix this implementation
     def ilp(self):  # programmation linéaire en nombre entier. PLNE
         record = Solution(self.instance, 'programmation linéaire en nombre entier. PLNE')
 
@@ -448,7 +446,7 @@ class Heuristiques:
         record.setSequence(tour)
         return record
 
-
+    # TODO: maybe update this routine so as the evolution won't be a single point
     def mvt2Opt (self, s: Solution):
         seq = s.getSequence()
         s.affiche()
@@ -523,8 +521,6 @@ class Heuristiques:
 
         return False
 
-
-
     def multistart (self, nb_iter = 20):
         record = Solution(self.instance, 'Multistart')
         debut = time.time()
@@ -577,6 +573,7 @@ class Heuristiques:
         return record
 
     def regen(self, s: Solution):
+        # can be used for recherche_tabou or simulated annealing
         seq = s.getSequence()
         
         fst = random.randint(0, len(seq)-1)
@@ -623,7 +620,7 @@ class Heuristiques:
 if __name__ == '__main__':
 
     random.seed(0)
-    inst = Instance.fromFile("./data/instance1.txt")
+    inst = Instance.fromFile("./data/instance3.txt")
    
     hoginst = inst.redhog(15)
 
