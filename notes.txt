@@ -1,0 +1,20 @@
+About the POIs, the ameneties that I've tested and found interesting for our implementation of the TSP variant are:
+- charging_station
+- toilets
+- pharmacy
+
+
+
+
+Note: I consider an amenity interesting if the nodes that represent it are not already clustered in one spot, otherwise our 
+redhog algorithm will reduce the graph to only a handfull nodes...Which might be not enough for our teacher.
+So I've tested a couple ameneties, and I note the ones that do not have all the nodes in the same region.
+
+As an example, restaurant or bar is a bad amenity since most of the restaurants in Le Havre are by the beach/down town.
+marketplace is also a bad amenity since there is not a lot of them (9 nodes, we need at least 20.)
+Same thing for clinic, there are only 2 !! (Heaven forbbid illness !)
+
+
+These have way too much nodes (> 300)
+- parking
+- bicycle_parking

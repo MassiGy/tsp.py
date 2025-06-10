@@ -6,7 +6,9 @@ import itertools
 import time
 import matplotlib.pyplot as plt
 from pulp import LpProblem, LpVariable, LpMinimize, lpSum, PULP_CBC_CMD
+from pathlib import Path
 
+import osmnx as ox
 
 def mapval(val, inMin, inMax, outMin, outMax):
     return outMin + ((float)(val-inMin)/(inMax-inMin)) * (outMax-outMin)
@@ -625,6 +627,136 @@ class Heuristiques:
 
 if __name__ == '__main__':
 
+    place = "Le Havre, Seine-Maritime, France"
+    amenity = "charging_station"
+    tags = {"amenity": amenity}
+
+    # 1. Download the walkable street network (for background)
+    G = ox.graph_from_place(place, network_type="walk")
+    G_proj = ox.project_graph(G)
+
+    # 2. Download restaurant POIs
+    restaurants = ox.features_from_place(place, tags)
+    restaurants_proj = restaurants.to_crs(G_proj.graph['crs'])
+    print(f"found {len(restaurants)} POIs")
+
+    # 3. Plot street network (light grey) + restaurants (red dots)
+    fig, ax = ox.plot_graph(
+        G_proj,
+        show=False,
+        close=False,
+        bgcolor='white',
+        node_color='lightgrey',
+        edge_color='lightgrey',
+        node_size=5,
+        edge_linewidth=0.5
+    )
+
+    # Plot restaurants on top
+    restaurants_proj.plot(ax=ax, color='red', markersize=10, alpha=0.8, label='Restaurants')
+
+    # Final touches
+    ax.set_title("Restaurants in Le Havre", fontsize=14)
+  
+    plt.show()
+
+
+    """
+    # Define place and tag
+    place = "Le Havre, Seine-Maritime, France"
+    tags = {"amenity": "restaurant"}
+
+    # 1. Download only restaurant POIs
+    restaurants = ox.features_from_place(place, tags)
+
+    # 2. Print info
+    print(f"Found {len(restaurants)} restaurants")
+    print(restaurants[["name", "geometry"]].head())
+
+    # 3. Plot restaurants directly
+    fig, ax = plt.subplots()
+    restaurants.plot(ax=ax, color='red', markersize=10, alpha=0.7)
+    ax.set_title("Restaurants in Le Havre")
+    plt.show()
+
+    # 4. Save to GeoJSON
+    restaurants.to_file("./data/restaurants_lehavre.geojson", driver="GeoJSON")
+    
+    
+    G = ox.graph_from_place(place, simplify=True, retain_all=False, custom_filter="")
+    G_proj = ox.project_graph(G)
+    fig, ax = ox.plot_graph(G_proj, show=True, close=False)
+    plt.show()
+    """
+
+
+
+
+    """
+    filepath = "./data/lehavre-restaurants.graphml"
+    place = "Le Havre, Seine-Maritime, France"
+
+    # 1. Load walkable street network
+    G = ox.graph_from_place(place, network_type="walk")
+    G_proj = ox.project_graph(G)
+
+    # 2. Load restaurant POIs
+    tags = {"amenity": "restaurant"}
+    restaurants = ox.features_from_place(place, tags)
+
+    # 3. Project restaurant GeoDataFrame to match graph CRS
+    restaurants_proj = restaurants.to_crs(G_proj.graph['crs'])
+
+    # 4. Plot the graph
+    fig, ax = ox.plot_graph(G_proj, show=False, close=False)
+
+    # 5. Plot the restaurants
+    restaurants_proj.plot(ax=ax, color='red', markersize=10, alpha=0.7, label='Restaurants')
+
+    
+    ax.set_title("Restaurants in Le Havre")
+    plt.show()
+
+    # 7. Save restaurant POIs to GeoJSON
+    restaurants.to_file("restaurants_lehavre.geojson", driver='GeoJSON')
+"""
+
+   
+    """
+    place = "Le Havre, Seine-Maritime, France"
+   
+    # Download Open Street Map data.
+    tags = {"amenity": "restaurant"}
+    restaurants = ox.features_from_place(place, tags)
+   
+
+    # Print number of restaurants and preview
+    print(f"Found {len(restaurants)} restaurants")
+    print(restaurants[["name", "geometry"]].head())
+
+
+    # Project graph and restaurants to same CRS
+    G_proj = ox.project_graph(restaurants)
+    restaurants_proj = restaurants.to_crs(G_proj.graph['crs'])
+
+    # Plot the graph
+    fig, ax = ox.plot_graph(G_proj, show=False, close=False)
+
+    # Plot the restaurants
+    restaurants_proj.plot(ax=ax, color='red', markersize=10, alpha=0.7, label='Restaurants')
+
+    # Add a legend and title
+    ax.set_title("Restaurants in Le Havre")
+    plt.show()
+
+    restaurants.to_file("restaurants_lehavre.geojson", driver='GeoJSON')
+
+    #fig, ax = ox.plot.plot_graph(G, show=True, save=True, close=True, filepath="./images/lh.svg")
+
+    # get all building footprints and save as a geopackage via geopandas
+   
+"""
+    """
     random.seed(0)
     filename = "./data/instance3.txt"
     print(f"[metrics._main_]: About to load instance from file {filename}.")
@@ -653,3 +785,4 @@ if __name__ == '__main__':
         print('evolution = ', heur.evolution)
         if len(heur.evolution) > 0:
             heur.plot_evo()
+    """
