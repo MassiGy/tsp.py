@@ -1,28 +1,7 @@
-OrOpt : 
-à partir de la solution courante, on évalue toutes les solutions voisines qu’on
-peut obtenir en supprimant un sommet et en le réinsérant ailleurs.
- 
-On prend la première solution voisine qui améliore et on recommence jusqu’à ne plus 
-trouver de voisin améliorant
-
-
-
-Swap : même chose mais en échangeant la position de 2 sommets quelconques
-
-
-c'est donc des permutations, à chaque fois on fait échanger deux sommets.
-
-
 Recuit simulé : on modifie une recherche locale. Au lieu de prendre le premier voisin
 améliorant, on génère un voisin au hasard. Il devient la nouvelle solution s’il est
 meilleur ou sinon selon une probabilité dépendant de la détérioration et d’une
 « température » qui décroit au fil des itérations.
 
 dans ce cas, c'est quoi la condition d'arrêt ? (car on connait pas la distance min à l'avance)
-donc peut être c'est le fait que T atteint T_MIN.
-
-
-
-Recherche tabou:
-avoir une liste de state déjà visité (state_tabou)
-ne plus accepeter d'état étant dans la liste.
+donc peut être c'est le fait que T atteint T_MIN ?

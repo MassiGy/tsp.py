@@ -51,6 +51,8 @@ class Instance:
         self.name = name
         self.nb_sommets = n
         self.sommets = sommets
+        
+        self.dist = [[0.0] * self.nb_sommets for _ in range(self.nb_sommets)]
         #self.init()
     
     def size (self):
@@ -96,7 +98,7 @@ class Instance:
         self.maxdist = -float('inf')
         self.mindist = float('inf')
  
-        self.dist = [[0.0] * self.nb_sommets for _ in range(self.nb_sommets)]
+        
         for si in self.sommets:
             for sj in self.sommets:
                 siid, sjid= si.getId(),sj.getId()
@@ -282,10 +284,10 @@ class Solution:
         self.valeur = 0.0
         self.temps = 0.0
 
-    def getSequence (self):
+    def getSequence (self)->list:
         return self.sequence
 
-    def getValeur (self):
+    def getValeur (self)->float:
         return self.valeur
     
     def getTemps (self):
@@ -470,14 +472,59 @@ class Heuristiques:
                     return True
         return False
     
-    def localSearch (self, s):
-        cpt = 0
-        while self.mvt2Opt(s) is True:
-            # print('iteration {}'.format(cpt),end='')
-            # s.affiche()
-            cpt += 1
-        return cpt
-    
+    def OrOpt (self, s: Solution, nb_iter=20):
+        s.affiche()
+        refseq = s.getSequence()
+        
+        seq = refseq.copy()
+        _s = Solution(Instance("", len(refseq)), None)   # shallow struct (just for the eval fn) 
+        
+
+        counter = 0
+        while counter <= nb_iter:
+            indx_removal = random.randint(0, len(seq)-1)
+            node = seq.pop(indx_removal)
+            indx_insertion = random.randint(0, len(seq)-1)
+            seq.insert(indx_insertion, node)
+
+            _s.setSequence(seq)
+
+            if _s.getValeur() < s.getValeur():
+                s.setSequence(seq)
+                s.affiche()
+                return True
+        
+            counter +=1
+
+        return False
+
+    def swap (self, s: Solution, nb_iter=20):
+        s.affiche()
+        refseq = s.getSequence()
+
+        seq = refseq.copy()
+        _s = Solution(Instance("", len(refseq)), None)   # shallow struct (just for the eval fn) 
+        
+
+        counter = 0
+        while counter <= nb_iter:
+            fst = random.randint(0, len(seq)-1)
+            snd = random.randint(0, len(seq)-1)
+            seq[fst], seq[snd] = seq[snd], seq[fst]
+
+            _s.setSequence(seq)
+
+            if _s.getValeur() < s.getValeur():
+                s.setSequence(seq)
+                s.affiche()
+                return True
+        
+            counter +=1
+
+        return False
+
+
+
     def multistart (self, nb_iter = 20):
         record = Solution(self.instance, 'Multistart')
         debut = time.time()
@@ -490,20 +537,86 @@ class Heuristiques:
                 self.evolution.append((duree,s.getValeur()))
         return record
     
-    def multistart_LS (self, nb_iter = 20):
-        record = Solution(self.instance, 'Multistart_LS')
+    def multistart_LS_2Opt (self, nb_iter = 20):
+        record = Solution(self.instance, 'Multistart_LS_2Opt')
         debut = time.time()
         self.evolution = []
         for iter in range(nb_iter):
             s = self.compute_random()
-            self.localSearch(s)
+            self.mvt2Opt(s)
             if record.getValeur() == 0.0 or s.getValeur() < record.getValeur():
                 record.setSequence(s.getSequence())
                 duree = time.time() - debut
                 self.evolution.append((duree,s.getValeur()))
         return record
     
+    def multistart_LS_Swap (self, nb_iter = 20):
+        record = Solution(self.instance, 'Multistart_LS_Swap')
+        debut = time.time()
+        self.evolution = []
+        for iter in range(nb_iter):
+            s = self.compute_random()
+            self.swap(s)
+            if record.getValeur() == 0.0 or s.getValeur() < record.getValeur():
+                record.setSequence(s.getSequence())
+                duree = time.time() - debut
+                self.evolution.append((duree,s.getValeur()))
+        return record
 
+    def multistart_LS_OrOpt (self, nb_iter = 20):
+        record = Solution(self.instance, 'Multistart_LS_OrOpt')
+        debut = time.time()
+        self.evolution = []
+        for iter in range(nb_iter):
+            s = self.compute_random()
+            self.OrOpt(s)
+            if record.getValeur() == 0.0 or s.getValeur() < record.getValeur():
+                record.setSequence(s.getSequence())
+                duree = time.time() - debut
+                self.evolution.append((duree,s.getValeur()))
+        return record
+
+    def regen(self, s: Solution):
+        seq = s.getSequence()
+        
+        fst = random.randint(0, len(seq)-1)
+        snd = random.randint(0, len(seq)-1)
+        seq[fst], seq[snd] = seq[snd], seq[fst]
+        
+        s.setSequence(seq)
+        return s
+
+    def hash(self, s: Solution)->str:
+        hashstr = ""
+        seq = s.getSequence()
+        for id in seq: 
+            hashstr += str(id)
+
+        return hashstr
+    
+    def recherche_tabou(self, nb_iter = 20): 
+        record = Solution(self.instance, 'Recherche Tabou')
+        debut = time.time()
+        self.evolution = []
+        
+        forbiden_hashes:list[str] = []
+        s = self.compute_random()
+
+        for iter in range(nb_iter):
+            self.regen(s)
+            shash = self.hash(s)
+            
+            if shash in forbiden_hashes:
+                continue
+
+            if record.getValeur() == 0.0 or s.getValeur() < record.getValeur():
+                record.setSequence(s.getSequence())
+                duree = time.time() - debut
+                self.evolution.append((duree,s.getValeur()))
+            else: 
+                forbiden_hashes.append(shash)
+            
+        return record
 
 
 
@@ -523,7 +636,7 @@ if __name__ == '__main__':
     heur = Heuristiques(hoginst)
  
     
-    methodes = [heur.compute_triviale, heur.compute_random, heur.compute_nearest, heur.multistart, heur.multistart_LS]
+    methodes = [heur.compute_triviale, heur.compute_random, heur.compute_nearest, heur.multistart, heur.multistart_LS_2Opt, heur.multistart_LS_Swap, heur.multistart_LS_OrOpt, heur.recherche_tabou]
     for m in methodes:
         debut = time.time()
         sol:Solution = m()
