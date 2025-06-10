@@ -7,3 +7,12 @@ I've used AI today to:
 * help me debug the redhog routine. It is chatGPT that helped me with the ordering logic (it suggested to order them in decending order.)
 * I've used chatGPT to write the hubs visualiser.
 The rest was all done by hand.
+
+
+Tue, Jun 10, 2025 10:37:58 PM
+
+I've used AI today to:
+* explore the API of osmnx package.
+* find how to plot POIs on a background image.
+* find all the possible ameneties.
+* test diffrent configurations and drivers for the storage (opted for json)
