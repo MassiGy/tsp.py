@@ -656,7 +656,7 @@ if __name__ == '__main__':
     POIs_proj.plot(ax=ax, color='red', markersize=10, alpha=0.8, label=amenity)
 
 
-    ax.set_title(f"Le Havre's {amenity}", fontsize=14)
+    ax.set_title(f"Le Havre's {amenity} network", fontsize=14)
     plt.show()
 
     """
