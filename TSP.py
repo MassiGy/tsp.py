@@ -657,232 +657,239 @@ class Heuristiques:
 
 
 if __name__ == '__main__':
-
-    place = "Le Havre, Seine-Maritime, France"
-    amenity = "charging_station"
-
-    # local cache
-    graph_cache_filepath = "./data/lh.graphml"
-    amenity_cache_storage_driver ="GeoJSON"
-    amenity_cache_filepath = f"./data/lh_amenities.{amenity}.{amenity_cache_storage_driver.lower()}"
+    use_osmnx_data = True
     
-    # Load or download the graph
-    G=None
-    if os.path.exists(graph_cache_filepath) and os.path.getsize(graph_cache_filepath) > 0:
-        print("Loading graph from cache...")
-        G = ox.load_graphml(graph_cache_filepath)
+    
+    if not use_osmnx_data:
+        random.seed(0)
+        filename = "./data/instance2.txt"
+        print(f"[metrics._main_]: Set to not use osmnx data. Use localy generated data instead.")
+        print(f"[metrics._main_]: About to load instance from file {filename}.")
+        inst = Instance.fromFile(filename)
+        print(f"[metrics._main_]: Loaded instance # nodes = {inst.nb_sommets}.")
+        print(f"[metrics._main_]: About to reduce loaded graph to Hubs only graph (redhog).")
+
+        proportion = 15
+        print(f"[metrics._main_]: Hub to Node radius set to {proportion}% of delta(mindist, maxdist).")
+        hoginst = inst.redhog(proportion)
+    
+
+        # generation heuristique des solutions
+        heur = Heuristiques(hoginst)
+    
+        # wave1: with no nb_iter arg and no evolution tracking
+        methodes = [heur.compute_triviale, heur.compute_random, heur.compute_nearest,heur.ilp]
+        for m in methodes:
+            print(f"\n[metrics._main_]: About to run the {m.__name__} strategy.")
+            debut = time.time()
+            sol:Solution = m()
+            duree = time.time() - debut
+            sol.setTemps(duree)
+            sol.affiche()
+            sol.plot()
+
+        # wave2: with nb_iter arg and evolution tracking
+        methodes = [heur.multistart, heur.multistart_LS_2Opt, heur.multistart_LS_Swap, heur.multistart_LS_OrOpt, heur.recherche_tabou]
+        for m in methodes:
+            print(f"\n[metrics._main_]: About to run the {m.__name__} strategy.")
+            debut = time.time()
+            sol:Solution = m(nb_iter=inst.nb_sommets*inst.nb_sommets)
+            duree = time.time() - debut
+            sol.setTemps(duree)
+            sol.affiche()
+            sol.plot()
+            print('evolution = ', heur.evolution)
+            if len(heur.evolution) > 0:
+                heur.plot_evo()
+
+
     else:
-        print("Downloading graph...")
-        G = ox.graph_from_place(place, network_type="walk")
-        ox.save_graphml(G, graph_cache_filepath)
-
-    # Project the graph
-    G_proj = ox.project_graph(G)
-
-    # Load or download POIs
-    POIs=None
-    if os.path.exists(amenity_cache_filepath) and os.path.getsize(amenity_cache_filepath) > 0:
-        print("Loading amenities from cache...")
-        POIs = gpd.read_file(amenity_cache_filepath)
-    else:
-        print("Downloading amenities...")
-        tags = {"amenity": amenity}
-        POIs = ox.features_from_place(place, tags)
-        POIs.to_file(amenity_cache_filepath, driver=amenity_cache_storage_driver)
-
-
-
-
-    POIs_proj = POIs.to_crs(G_proj.graph['crs'])
-    lenPOIs = len(POIs)
-    print(f"found {lenPOIs} POIs")
-
-    # Plot street network (light grey) + POIs (red dots)
-    fig, ax = ox.plot_graph(
-        G_proj,
-        show=False,
-        close=False,
-        bgcolor='white',
-        node_color='lightgrey',
-        edge_color='lightgrey',
-        node_size=5,
-        edge_linewidth=0.5
-    )
-
-    # Plot POIs on top
-    POIs_proj.plot(ax=ax, color='red', markersize=10, alpha=0.8, label=amenity)
-    
-    ax.set_title(f"Le Havre's {amenity} network", fontsize=14)
-    plt.show()
-   
-
-
-
-    # Convert the amenities coordinates to a list of points.
-    poi_xy_tuples = []
-
-    for geom in POIs_proj.geometry:
-        if isinstance(geom, Point):
-            poi_xy_tuples.append((geom.x, geom.y))
+        # osmnx data target
+        place = "Le Havre, Seine-Maritime, France"
+        amenity = "charging_station"
+        print(f"[metrics._main_]: Set to use osmnx data w/ place={place} and amenity={amenity}.")
+       
+        # local cache
+        graph_cache_filepath = "./data/lh.graphml"
+        print(f"[metrics._main_]: Local graph cache filepath={graph_cache_filepath} .")
         
-        elif geom is not None and geom.is_valid:
-            # Fallback: use centroid of the geometry
-            centroid = geom.centroid
-            poi_xy_tuples.append((centroid.x, centroid.y))
-
-
-    nodes = [Sommet(p[0], p[1]) for p in poi_xy_tuples]
-    inst = Instance(f"Le Havre's {amenity} network", len(poi_xy_tuples), nodes)
-    inst.computeDistances()
-    
-    proportion = 12
-    print(f"[metrics._main_]: Hub to Node radius set to {proportion}% of delta(mindist, maxdist).")
-    hoginst = inst.redhog(proportion, debugplot=False)
-    
-   
-    # Plot street network (light grey) + reduced set of POIs (red dots)
-    fig, ax = ox.plot_graph(
-        G_proj,
-        show=False,
-        close=False,
-        bgcolor='white',
-        node_color='lightgrey',
-        edge_color='lightgrey',
-        node_size=5,
-        edge_linewidth=0.5
-    )
-    gdf4redhog = gpd.GeoDataFrame(geometry=[Point(s.getX(), s.getY()) for s in hoginst.sommets], crs=G_proj.graph['crs'])
-    gdf4redhog.plot(ax=ax, color='red', markersize=10, alpha=0.8, label=amenity)
-
-    ax.set_title(f"Le Havre's {amenity} network (redhoged)", fontsize=14)
-    plt.show()
-   
-
-
-
-    # generation heuristique des solutions
-    heur = Heuristiques(hoginst)
- 
-    
-    # wave1: with no nb_iter arg and no evolution tracking
-    methodes = [heur.compute_triviale, heur.compute_random, heur.compute_nearest, heur.ilp]
-    for m in methodes:
-        print(f"\n[metrics._main_]: About to run the {m.__name__} strategy.")
-        debut = time.time()
-        sol:Solution = m()
-        duree = time.time() - debut
-        sol.setTemps(duree)
-        sol.affiche()
+        amenity_cache_storage_driver ="GeoJSON"
+        amenity_cache_filepath = f"./data/lh_amenities.{amenity}.{amenity_cache_storage_driver.lower()}"
+        print(f"[metrics._main_]: Local amenities cache filepath={amenity_cache_filepath} .")
         
-        # plot the graph
+        # Load or download the graph
+        G=None
+        if os.path.exists(graph_cache_filepath) and os.path.getsize(graph_cache_filepath) > 0:
+            print("[metrics._main_]: Loading graph from cache...")
+            G = ox.load_graphml(graph_cache_filepath)
+        else:
+            print("[metrics._main_]: Downloading graph...")
+            G = ox.graph_from_place(place, network_type="walk")
+            ox.save_graphml(G, graph_cache_filepath)
+
+        # Project the graph
+        G_proj = ox.project_graph(G)
+
+        # Load or download POIs
+        POIs=None
+        if os.path.exists(amenity_cache_filepath) and os.path.getsize(amenity_cache_filepath) > 0:
+            print("[metrics._main_]: Loading amenities from cache...")
+            POIs = gpd.read_file(amenity_cache_filepath)
+        else:
+            print("[metrics._main_]: Downloading amenities...")
+            tags = {"amenity": amenity}
+            POIs = ox.features_from_place(place, tags)
+            POIs.to_file(amenity_cache_filepath, driver=amenity_cache_storage_driver)
+
+
+
+
+        POIs_proj = POIs.to_crs(G_proj.graph['crs'])
+        lenPOIs = len(POIs)
+        print(f"[metrics._main_]: Got {lenPOIs} POIs")
+
+        # Plot street network (light grey) + POIs (red dots)
+        print("[metrics._main_]: Ploting map with all POIs...")
         fig, ax = ox.plot_graph(
-            G_proj,
-            show=False,
-            close=False,
-            bgcolor='white',
-            node_color='lightgrey',
-            edge_color='lightgrey',
-            node_size=5,
-            edge_linewidth=0.5
+            G_proj, show=False, close=False,
+            bgcolor='white', node_color='lightgrey', edge_color='lightgrey',
+            node_size=5, edge_linewidth=0.5
         )
-        # plot the points
+
+        # Plot POIs on top
+        POIs_proj.plot(ax=ax, color='red', markersize=10, alpha=0.8, label=amenity)
+        
+        ax.set_title(f"Le Havre's {amenity} network", fontsize=14)
+        plt.show()
+    
+
+
+
+        # Convert the amenities coordinates to a list of points.
+        poi_xy_tuples = []
+
+        for geom in POIs_proj.geometry:
+            if isinstance(geom, Point):
+                poi_xy_tuples.append((geom.x, geom.y))
+            
+            elif geom is not None and geom.is_valid:
+                # Fallback: use centroid of the geometry
+                centroid = geom.centroid
+                poi_xy_tuples.append((centroid.x, centroid.y))
+
+
+        nodes = [Sommet(p[0], p[1]) for p in poi_xy_tuples]
+        inst = Instance(f"Le Havre's {amenity} network", len(poi_xy_tuples), nodes)
+        inst.computeDistances()
+        
+        proportion = 12
+        print(f"[metrics._main_]: Hub to Node radius set to {proportion}% of delta(mindist, maxdist).")
+        hoginst = inst.redhog(proportion, debugplot=False)
+        
+    
+        # Plot street network (light grey) + reduced set of POIs (red dots)
+        print("[metrics._main_]: Ploting map with the reduced set of POIs (after redhog routine)...")
+        fig, ax = ox.plot_graph(
+            G_proj, show=False, close=False,
+            bgcolor='white', node_color='lightgrey', edge_color='lightgrey',
+            node_size=5, edge_linewidth=0.5
+        )
+
         gdf4redhog = gpd.GeoDataFrame(geometry=[Point(s.getX(), s.getY()) for s in hoginst.sommets], crs=G_proj.graph['crs'])
         gdf4redhog.plot(ax=ax, color='red', markersize=10, alpha=0.8, label=amenity)
 
-        # plot the edges (lines between the points of the solution sequence)
-        seq = sol.getSequence()
-        seq.append(seq[0])
-        lines = [
-            LineString([
-                (hoginst.sommets[seq[i]].getX(), hoginst.sommets[seq[i]].getY()), 
-                (hoginst.sommets[seq[i+1]].getX(), hoginst.sommets[seq[i+1]].getY())
-            ]) 
-            for i in range(len(seq) - 1)
-        ]
-        gdf_lines = gpd.GeoDataFrame(geometry=lines, crs=G_proj.graph['crs'])
-        gdf_lines.plot(ax=ax, color='blue', linewidth=1, linestyle='--', alpha=0.7, label='Edges')
-
-
-        # set title and show the plot
-        ax.set_title(f"TSP on Le Havre's {amenity} network\nstrategy={m.__name__}, distsum={"{:.3f}".format(sol.getValeur()/1000)} km, time={"{:.6f}".format(duree)} seconds", fontsize=10)
+        ax.set_title(f"Le Havre's {amenity} network (redhoged)", fontsize=14)
         plt.show()
-
-    # wave2: with nb_iter arg and evolution tracking
-    methodes = [heur.multistart, heur.multistart_LS_2Opt, heur.multistart_LS_Swap, heur.multistart_LS_OrOpt, heur.recherche_tabou]
-    for m in methodes:
-        print(f"\n[metrics._main_]: About to run the {m.__name__} strategy.")
-        debut = time.time()
-        sol:Solution = m(nb_iter=lenPOIs*lenPOIs)
-        duree = time.time() - debut
-        sol.setTemps(duree)
-        sol.affiche()
-      
-        # plot the graph
-        fig, ax = ox.plot_graph(
-            G_proj,
-            show=False,
-            close=False,
-            bgcolor='white',
-            node_color='lightgrey',
-            edge_color='lightgrey',
-            node_size=5,
-            edge_linewidth=0.5
-        )
-        # plot the points
-        gdf4redhog = gpd.GeoDataFrame(geometry=[Point(s.getX(), s.getY()) for s in hoginst.sommets], crs=G_proj.graph['crs'])
-        gdf4redhog.plot(ax=ax, color='red', markersize=10, alpha=0.8, label=amenity)
-
-        # plot the edges (lines between the points of the solution sequence)
-        seq = sol.getSequence()
-        seq.append(seq[0])
-        lines = [
-            LineString([
-                (hoginst.sommets[seq[i]].getX(), hoginst.sommets[seq[i]].getY()), 
-                (hoginst.sommets[seq[i+1]].getX(), hoginst.sommets[seq[i+1]].getY())
-            ]) 
-            for i in range(len(seq) - 1)
-        ]
-        gdf_lines = gpd.GeoDataFrame(geometry=lines, crs=G_proj.graph['crs'])
-        gdf_lines.plot(ax=ax, color='blue', linewidth=1, linestyle='--', alpha=0.7, label='Edges')
-
-
-        # set title and show the plot
-        ax.set_title(f"TSP on Le Havre's {amenity} network\nstrategy={m.__name__}, distsum={"{:.3f}".format(sol.getValeur()/1000)} km, time={"{:.6f}".format(duree)} seconds", fontsize=10)
-        plt.show()
-
-
-
-        print('evolution = ', heur.evolution)
-        if len(heur.evolution) > 0:
-            heur.plot_evo()
-
-    """
-    random.seed(0)
-    filename = "./data/instance3.txt"
-    print(f"[metrics._main_]: About to load instance from file {filename}.")
-    inst = Instance.fromFile(filename)
-    print(f"[metrics._main_]: Loaded instance # nodes = {inst.nb_sommets}.")
-    print(f"[metrics._main_]: About to reduce loaded graph to Hubs only graph (redhog).")
-
-    proportion = 15
-    print(f"[metrics._main_]: Hub to Node radius set to {proportion}% of delta(mindist, maxdist).")
-    hoginst = inst.redhog(proportion)
-  
-
-    # generation heuristique des solutions
-    heur = Heuristiques(hoginst)
- 
     
-    methodes = [heur.compute_triviale, heur.compute_random, heur.compute_nearest,heur.ilp, heur.multistart, heur.multistart_LS_2Opt, heur.multistart_LS_Swap, heur.multistart_LS_OrOpt, heur.recherche_tabou]
-    for m in methodes:
-        print(f"\n[metrics._main_]: About to run the {m.__name__} strategy.")
-        debut = time.time()
-        sol:Solution = m()
-        duree = time.time() - debut
-        sol.setTemps(duree)
-        sol.affiche()
-        sol.plot()
-        print('evolution = ', heur.evolution)
-        if len(heur.evolution) > 0:
-            heur.plot_evo()
-    """
+
+
+
+        # generation heuristique des solutions
+        heur = Heuristiques(hoginst)
+    
+        
+        # wave1: with no nb_iter arg and no evolution tracking
+        methodes = [heur.compute_triviale, heur.compute_random, heur.compute_nearest, heur.ilp]
+        for m in methodes:
+            print(f"\n[metrics._main_]: About to run the {m.__name__} strategy.")
+            debut = time.time()
+            sol:Solution = m()
+            duree = time.time() - debut
+            sol.setTemps(duree)
+            sol.affiche()
+            
+            # plot the graph
+            print("[metrics._main_]: Ploting results on to the map...")
+            fig, ax = ox.plot_graph(
+            G_proj, show=False, close=False,
+            bgcolor='white', node_color='lightgrey', edge_color='lightgrey',
+            node_size=5, edge_linewidth=0.5
+            )
+
+            # plot the points
+            gdf4redhog = gpd.GeoDataFrame(geometry=[Point(s.getX(), s.getY()) for s in hoginst.sommets], crs=G_proj.graph['crs'])
+            gdf4redhog.plot(ax=ax, color='red', markersize=10, alpha=0.8, label=amenity)
+
+            # plot the edges (lines between the points of the solution sequence)
+            seq = sol.getSequence()
+            seq.append(seq[0])
+            lines = [
+                LineString([
+                    (hoginst.sommets[seq[i]].getX(), hoginst.sommets[seq[i]].getY()), 
+                    (hoginst.sommets[seq[i+1]].getX(), hoginst.sommets[seq[i+1]].getY())
+                ]) 
+                for i in range(len(seq) - 1)
+            ]
+            gdf_lines = gpd.GeoDataFrame(geometry=lines, crs=G_proj.graph['crs'])
+            gdf_lines.plot(ax=ax, color='blue', linewidth=1, linestyle='--', alpha=0.7, label='Edges')
+
+
+            # set title and show the plot
+            ax.set_title(f"TSP on Le Havre's {amenity} network\nstrategy={m.__name__}, distsum={"{:.3f}".format(sol.getValeur()/1000)} km, time={"{:.6f}".format(duree)} seconds", fontsize=10)
+            plt.show()
+
+        # wave2: with nb_iter arg and evolution tracking
+        methodes = [heur.multistart, heur.multistart_LS_2Opt, heur.multistart_LS_Swap, heur.multistart_LS_OrOpt, heur.recherche_tabou]
+        for m in methodes:
+            print(f"\n[metrics._main_]: About to run the {m.__name__} strategy.")
+            debut = time.time()
+            sol:Solution = m(nb_iter=lenPOIs*lenPOIs)
+            duree = time.time() - debut
+            sol.setTemps(duree)
+            sol.affiche()
+        
+            # plot the graph
+            print("[metrics._main_]: Ploting results on to the map...")
+            fig, ax = ox.plot_graph(
+            G_proj, show=False, close=False,
+            bgcolor='white', node_color='lightgrey', edge_color='lightgrey',
+            node_size=5, edge_linewidth=0.5
+            )
+
+            # plot the points
+            gdf4redhog = gpd.GeoDataFrame(geometry=[Point(s.getX(), s.getY()) for s in hoginst.sommets], crs=G_proj.graph['crs'])
+            gdf4redhog.plot(ax=ax, color='red', markersize=10, alpha=0.8, label=amenity)
+
+            # plot the edges (lines between the points of the solution sequence)
+            seq = sol.getSequence()
+            seq.append(seq[0])
+            lines = [
+                LineString([
+                    (hoginst.sommets[seq[i]].getX(), hoginst.sommets[seq[i]].getY()), 
+                    (hoginst.sommets[seq[i+1]].getX(), hoginst.sommets[seq[i+1]].getY())
+                ]) 
+                for i in range(len(seq) - 1)
+            ]
+            gdf_lines = gpd.GeoDataFrame(geometry=lines, crs=G_proj.graph['crs'])
+            gdf_lines.plot(ax=ax, color='blue', linewidth=1, linestyle='--', alpha=0.7, label='Edges')
+
+
+            # set title and show the plot
+            ax.set_title(f"TSP on Le Havre's {amenity} network\nstrategy={m.__name__}, distsum={"{:.3f}".format(sol.getValeur()/1000)} km, time={"{:.6f}".format(duree)} seconds", fontsize=10)
+            plt.show()
+
+
+
+            print('evolution = ', heur.evolution)
+            if len(heur.evolution) > 0:
+                heur.plot_evo()
