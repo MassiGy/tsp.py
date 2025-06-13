@@ -2,13 +2,16 @@
 
 import random
 import math
+import os
 import itertools
 import time
 import matplotlib.pyplot as plt
 from pulp import LpProblem, LpVariable, LpMinimize, lpSum, PULP_CBC_CMD
 from pathlib import Path
-
 import osmnx as ox
+import geopandas as gpd
+from shapely.geometry import Point
+
 
 def mapval(val, inMin, inMax, outMin, outMax):
     return outMin + ((float)(val-inMin)/(inMax-inMin)) * (outMax-outMin)
@@ -629,18 +632,44 @@ if __name__ == '__main__':
 
     place = "Le Havre, Seine-Maritime, France"
     amenity = "charging_station"
-    tags = {"amenity": amenity}
 
-    # Download the walkable street network (for background)
-    G = ox.graph_from_place(place, network_type="walk")
+    # local cache
+    graph_cache_filepath = "./data/lh.graphml"
+    amenity_cache_storage_driver ="GeoJSON"
+    amenity_cache_filepath = "./data/lh_amenities."+amenity_cache_storage_driver.lower()
+    
+    # Load or download the graph
+    G=None
+    if os.path.exists(graph_cache_filepath) and os.path.getsize(graph_cache_filepath) > 0:
+        print("Loading graph from cache...")
+        G = ox.load_graphml(graph_cache_filepath)
+    else:
+        print("Downloading graph...")
+        G = ox.graph_from_place(place, network_type="walk")
+        ox.save_graphml(G, graph_cache_filepath)
+
+    # Project the graph
     G_proj = ox.project_graph(G)
 
-    # Download POIs
-    POIs = ox.features_from_place(place, tags)
+    # Load or download POIs
+    POIs=None
+    if os.path.exists(amenity_cache_filepath) and os.path.getsize(amenity_cache_filepath) > 0:
+        print("Loading amenities from cache...")
+        POIs = gpd.read_file(amenity_cache_filepath)
+    else:
+        print("Downloading amenities...")
+        tags = {"amenity": amenity}
+        POIs = ox.features_from_place(place, tags)
+        POIs.to_file(amenity_cache_filepath, driver=amenity_cache_storage_driver)
+
+
+
+    
     POIs_proj = POIs.to_crs(G_proj.graph['crs'])
     print(f"found {len(POIs)} POIs")
 
     # Plot street network (light grey) + POIs (red dots)
+    """
     fig, ax = ox.plot_graph(
         G_proj,
         show=False,
@@ -658,11 +687,30 @@ if __name__ == '__main__':
 
     ax.set_title(f"Le Havre's {amenity} network", fontsize=14)
     plt.show()
+    """
 
-    """
-    filepath = "./data/lehavre-restaurants.graphml"
-    restaurants.to_file("./data/restaurants_lehavre.geojson", driver="GeoJSON")
-    """
+
+
+    # Convert the amenities coordinates to a list of points.
+    poi_xy_tuples = []
+
+    for geom in POIs_proj.geometry:
+        if isinstance(geom, Point):
+            poi_xy_tuples.append((geom.x, geom.y))
+        
+        elif geom is not None and geom.is_valid:
+            # Fallback: use centroid of the geometry
+            centroid = geom.centroid
+            poi_xy_tuples.append((centroid.x, centroid.y))
+
+
+    print(poi_xy_tuples[:10])
+    print(len(poi_xy_tuples))
+
+    nodes = [Sommet(p[0], p[1]) for p in poi_xy_tuples]
+    inst = Instance("Le Havre's {amenity} network", len(poi_xy_tuples), nodes)
+    for n in nodes: print(n.str())
+    
 
     """
     random.seed(0)

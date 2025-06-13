@@ -9,9 +9,12 @@ donc peut être c'est le fait que T atteint T_MIN ?
 
 
 # PHASE 2
-- save the downloaded graph data to a file and check if this file exist before each attempt at redownloading it.
-- same thing for the POIs data.
-- dump the POIs gemoetry.point coordinates into a list of points, then use that to construct an instance:Instance.
+- save the downloaded graph data to a file and check if this file exist before each attempt at redownloading it. (done)
+- same thing for the POIs data.(done)
+- dump the POIs gemoetry.point coordinates into a list of points, then use that to construct an instance:Instance. (done)
+- update the plot routines to have dynamic boundries not just 0-100
 - call redhog on that instance.
 - init Hurestic(redhoged instance)
 - run the hurestics and keep track of the evolutions.
+- draw the point on the map
+- Update the logs
