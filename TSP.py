@@ -10,6 +10,7 @@ from pulp import LpProblem, LpVariable, LpMinimize, lpSum, PULP_CBC_CMD
 from pathlib import Path
 import osmnx as ox
 import geopandas as gpd
+from shapely import LineString
 from shapely.geometry import Point
 
 
@@ -126,15 +127,16 @@ class Instance:
                 if self.mindist > dist and siid != sjid:
                     self.mindist = dist
 
+
     # reduce to hubs only graph
-    def redhog(self, hubradius):
+    def redhog(self, hubradius, debugplot=True):
         
         print(f"[metrics.redhog]: Reduce graph to hubs only graph, input graph # nodes={self.nb_sommets}")
         print(f"[metrics.redhog]: maxdist={self.maxdist}, mindist={self.mindist}")
+        
         toHubDist = mapval(hubradius, 0, 100, self.mindist, self.maxdist)
         print(f"[metrics.redhog]: Node To Hub Distance Radius={toHubDist}")
         
-        hubs:list[Sommet] = []
         hubdeg = 2
         print(f"[metrics.redhog]: Hub Min Degree={hubdeg}")
        
@@ -157,21 +159,20 @@ class Instance:
                 if self.dist[siid][sjid] <= toHubDist:
                     n2ns[si].append(sj)
                 
+        # Find hub candidates, IMPORTANT: it is crucial to sort them
+        # by degree in a decending order, this way the selection will 
+        # be much more suitable for the end result (reduced graph)
+        candidates = sorted(n2ns.items(), key=lambda item: -len(item[1]))
+        hubs:list[Sommet] = []
+        for n, neighbors in candidates:
+            if len(neighbors) >= hubdeg and n not in hubs:
+                hubs.append(n)
                 
                 
-        Instance.visualize_hubs(n2ns, hubs, name="(All potential hubs)")
+        if debugplot: Instance.visualize_hubs(n2ns, hubs, name="(All potential hubs)")
         
         noChange = False
         while noChange == False:        # reduce iteratively until g converges to a given state.
-            # Find hub candidates, IMPORTANT: it is crucial to sort them
-            # by degree in a decending order, this way the selection will 
-            # be much more suitable for the end result (reduced graph)
-            hubs:list[Sommet] = []
-            candidates = sorted(n2ns.items(), key=lambda item: -len(item[1]))
-            for n, neighbors in candidates:
-                if len(neighbors) >= hubdeg and n not in hubs:
-                    hubs.append(n)
-            
             noChange = False
             # reduce the overlaps 
             to_remove = set()
@@ -180,7 +181,6 @@ class Instance:
                     siid, sjid= si.getId(),sj.getId()
                     
                     if siid == sjid or self.dist[siid][sjid] > toHubDist:
-                        noChange = True
                         continue
 
                     l1 = len(n2ns[si])
@@ -190,31 +190,21 @@ class Instance:
                     # desending order, prefer pushing to si's cluster first
                     # thus the >= rather then just > is super important (3 hours for just that !)
                     if l1 >= l2:
-                        overlap = list(set(n2ns[si]) & set(n2ns[sj]))
                         n2ns[si] = list(set(n2ns[si]) | set(n2ns[sj]))
-                        #to_remove.add(sj)
-                        for n in overlap: 
-                            noChange = False
-                            n2ns[sj].remove(n)
-                    else:
-                        overlap = list(set(n2ns[si]) & set(n2ns[sj])) 
+                        to_remove.add(sj)
+                    else: 
                         n2ns[sj] = list(set(n2ns[sj]) | set(n2ns[si]))
-                        #to_remove.add(si)
-                        for n in overlap: 
-                            noChange = False
-                            n2ns[sj].remove(n)
-                    """
+                        to_remove.add(si)
+
                     if si in n2ns[si]: n2ns[si].remove(si)
                     if sj in n2ns[sj]: n2ns[sj].remove(sj)
-                    """
-                    
-            """
+
+            
             noChange =  len(to_remove) == 0
             hubs = [h for h in hubs if h not in to_remove]
-            """
 
         
-        Instance.visualize_hubs(n2ns, hubs, name="(Reduced hubs set - merging)")     
+        if debugplot: Instance.visualize_hubs(n2ns, hubs, name="(Reduced hubs set - merging)")     
         
         print(f"[metrics.redhog]: # hubs in input graph={len(hubs)}")
 
@@ -237,7 +227,7 @@ class Instance:
             n.setId(i)
 
 
-        Instance.visualize_hubs(n2ns, hubs, name="(Hubs+Outliers - Final reduced Graph)")     
+        if debugplot: Instance.visualize_hubs(n2ns, hubs, name="(Hubs+Outliers - Final reduced Graph)")     
             
 
         # now that we have the hubs, create a new instance
@@ -250,7 +240,8 @@ class Instance:
         plt.show()
 
         return hoginst
-    
+   
+   
     @classmethod
     def visualize_hubs(cls, n2ns: dict, hubs: list, name=""):
         plt.figure()
@@ -512,7 +503,7 @@ class Heuristiques:
 
     def mvt2Opt (self, s: Solution):
         seq = s.getSequence()
-        s.affiche()
+        
         dist = self.instance.dist
         for i in range(0,len(seq)-2):
             for j in range(i+1, len(seq)-1):
@@ -529,12 +520,11 @@ class Heuristiques:
                         j -= 1
                     
                     s.setSequence(seq)
-                    s.affiche()
                     return True
         return False
     
     def OrOpt (self, s: Solution, nb_iter=20):
-        s.affiche()
+        
         refseq = s.getSequence()
         
         seq = refseq.copy()
@@ -552,7 +542,6 @@ class Heuristiques:
 
             if _s.getValeur() < s.getValeur():
                 s.setSequence(seq)
-                s.affiche()
                 return True
         
             counter +=1
@@ -560,7 +549,7 @@ class Heuristiques:
         return False
 
     def swap (self, s: Solution, nb_iter=20):
-        s.affiche()
+       
         refseq = s.getSequence()
 
         seq = refseq.copy()
@@ -577,7 +566,6 @@ class Heuristiques:
 
             if _s.getValeur() < s.getValeur():
                 s.setSequence(seq)
-                s.affiche()
                 return True
         
             counter +=1
@@ -635,17 +623,6 @@ class Heuristiques:
                 self.evolution.append((duree,s.getValeur()))
         return record
 
-    def regen(self, s: Solution):
-        # can be used for recherche_tabou or simulated annealing
-        seq = s.getSequence()
-        
-        fst = random.randint(0, len(seq)-1)
-        snd = random.randint(0, len(seq)-1)
-        seq[fst], seq[snd] = seq[snd], seq[fst]
-        
-        s.setSequence(seq)
-        return s
-
     def hash(self, s: Solution)->str:
         hashstr = ""
         seq = s.getSequence()
@@ -660,10 +637,9 @@ class Heuristiques:
         self.evolution = []
         
         forbiden_hashes:list[str] = []
-        s = self.compute_random()
 
         for iter in range(nb_iter):
-            self.regen(s)
+            s = self.compute_random()
             shash = self.hash(s)
             
             if shash in forbiden_hashes:
@@ -688,7 +664,7 @@ if __name__ == '__main__':
     # local cache
     graph_cache_filepath = "./data/lh.graphml"
     amenity_cache_storage_driver ="GeoJSON"
-    amenity_cache_filepath = "./data/lh_amenities."+amenity_cache_storage_driver.lower()
+    amenity_cache_filepath = f"./data/lh_amenities.{amenity}.{amenity_cache_storage_driver.lower()}"
     
     # Load or download the graph
     G=None
@@ -716,12 +692,12 @@ if __name__ == '__main__':
 
 
 
-    
+
     POIs_proj = POIs.to_crs(G_proj.graph['crs'])
-    print(f"found {len(POIs)} POIs")
+    lenPOIs = len(POIs)
+    print(f"found {lenPOIs} POIs")
 
     # Plot street network (light grey) + POIs (red dots)
-    """
     fig, ax = ox.plot_graph(
         G_proj,
         show=False,
@@ -735,11 +711,10 @@ if __name__ == '__main__':
 
     # Plot POIs on top
     POIs_proj.plot(ax=ax, color='red', markersize=10, alpha=0.8, label=amenity)
-
-
+    
     ax.set_title(f"Le Havre's {amenity} network", fontsize=14)
     plt.show()
-    """
+   
 
 
 
@@ -756,26 +731,41 @@ if __name__ == '__main__':
             poi_xy_tuples.append((centroid.x, centroid.y))
 
 
-    print(poi_xy_tuples[:10])
-    print(len(poi_xy_tuples))
-
     nodes = [Sommet(p[0], p[1]) for p in poi_xy_tuples]
     inst = Instance(f"Le Havre's {amenity} network", len(poi_xy_tuples), nodes)
     inst.computeDistances()
     
-    inst.plot()
-    plt.show()
-
-    proportion = 15
+    proportion = 12
     print(f"[metrics._main_]: Hub to Node radius set to {proportion}% of delta(mindist, maxdist).")
-    hoginst = inst.redhog(proportion)
-  
+    hoginst = inst.redhog(proportion, debugplot=False)
+    
+   
+    # Plot street network (light grey) + reduced set of POIs (red dots)
+    fig, ax = ox.plot_graph(
+        G_proj,
+        show=False,
+        close=False,
+        bgcolor='white',
+        node_color='lightgrey',
+        edge_color='lightgrey',
+        node_size=5,
+        edge_linewidth=0.5
+    )
+    gdf4redhog = gpd.GeoDataFrame(geometry=[Point(s.getX(), s.getY()) for s in hoginst.sommets], crs=G_proj.graph['crs'])
+    gdf4redhog.plot(ax=ax, color='red', markersize=10, alpha=0.8, label=amenity)
+
+    ax.set_title(f"Le Havre's {amenity} network (redhoged)", fontsize=14)
+    plt.show()
+   
+
+
 
     # generation heuristique des solutions
     heur = Heuristiques(hoginst)
  
     
-    methodes = [heur.compute_triviale, heur.compute_random, heur.compute_nearest,heur.ilp, heur.multistart, heur.multistart_LS_2Opt, heur.multistart_LS_Swap, heur.multistart_LS_OrOpt, heur.recherche_tabou]
+    # wave1: with no nb_iter arg and no evolution tracking
+    methodes = [heur.compute_triviale, heur.compute_random, heur.compute_nearest, heur.ilp]
     for m in methodes:
         print(f"\n[metrics._main_]: About to run the {m.__name__} strategy.")
         debut = time.time()
@@ -783,7 +773,85 @@ if __name__ == '__main__':
         duree = time.time() - debut
         sol.setTemps(duree)
         sol.affiche()
-        sol.plot()
+        
+        # plot the graph
+        fig, ax = ox.plot_graph(
+            G_proj,
+            show=False,
+            close=False,
+            bgcolor='white',
+            node_color='lightgrey',
+            edge_color='lightgrey',
+            node_size=5,
+            edge_linewidth=0.5
+        )
+        # plot the points
+        gdf4redhog = gpd.GeoDataFrame(geometry=[Point(s.getX(), s.getY()) for s in hoginst.sommets], crs=G_proj.graph['crs'])
+        gdf4redhog.plot(ax=ax, color='red', markersize=10, alpha=0.8, label=amenity)
+
+        # plot the edges (lines between the points of the solution sequence)
+        seq = sol.getSequence()
+        seq.append(seq[0])
+        lines = [
+            LineString([
+                (hoginst.sommets[seq[i]].getX(), hoginst.sommets[seq[i]].getY()), 
+                (hoginst.sommets[seq[i+1]].getX(), hoginst.sommets[seq[i+1]].getY())
+            ]) 
+            for i in range(len(seq) - 1)
+        ]
+        gdf_lines = gpd.GeoDataFrame(geometry=lines, crs=G_proj.graph['crs'])
+        gdf_lines.plot(ax=ax, color='blue', linewidth=1, linestyle='--', alpha=0.7, label='Edges')
+
+
+        # set title and show the plot
+        ax.set_title(f"TSP on Le Havre's {amenity} network\nstrategy={m.__name__}, distsum={"{:.3f}".format(sol.getValeur()/1000)} km, time={"{:.6f}".format(duree)} seconds", fontsize=10)
+        plt.show()
+
+    # wave2: with nb_iter arg and evolution tracking
+    methodes = [heur.multistart, heur.multistart_LS_2Opt, heur.multistart_LS_Swap, heur.multistart_LS_OrOpt, heur.recherche_tabou]
+    for m in methodes:
+        print(f"\n[metrics._main_]: About to run the {m.__name__} strategy.")
+        debut = time.time()
+        sol:Solution = m(nb_iter=lenPOIs*lenPOIs)
+        duree = time.time() - debut
+        sol.setTemps(duree)
+        sol.affiche()
+      
+        # plot the graph
+        fig, ax = ox.plot_graph(
+            G_proj,
+            show=False,
+            close=False,
+            bgcolor='white',
+            node_color='lightgrey',
+            edge_color='lightgrey',
+            node_size=5,
+            edge_linewidth=0.5
+        )
+        # plot the points
+        gdf4redhog = gpd.GeoDataFrame(geometry=[Point(s.getX(), s.getY()) for s in hoginst.sommets], crs=G_proj.graph['crs'])
+        gdf4redhog.plot(ax=ax, color='red', markersize=10, alpha=0.8, label=amenity)
+
+        # plot the edges (lines between the points of the solution sequence)
+        seq = sol.getSequence()
+        seq.append(seq[0])
+        lines = [
+            LineString([
+                (hoginst.sommets[seq[i]].getX(), hoginst.sommets[seq[i]].getY()), 
+                (hoginst.sommets[seq[i+1]].getX(), hoginst.sommets[seq[i+1]].getY())
+            ]) 
+            for i in range(len(seq) - 1)
+        ]
+        gdf_lines = gpd.GeoDataFrame(geometry=lines, crs=G_proj.graph['crs'])
+        gdf_lines.plot(ax=ax, color='blue', linewidth=1, linestyle='--', alpha=0.7, label='Edges')
+
+
+        # set title and show the plot
+        ax.set_title(f"TSP on Le Havre's {amenity} network\nstrategy={m.__name__}, distsum={"{:.3f}".format(sol.getValeur()/1000)} km, time={"{:.6f}".format(duree)} seconds", fontsize=10)
+        plt.show()
+
+
+
         print('evolution = ', heur.evolution)
         if len(heur.evolution) > 0:
             heur.plot_evo()

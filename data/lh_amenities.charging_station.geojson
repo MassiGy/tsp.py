@@ -1,6 +1,6 @@
 {
 "type": "FeatureCollection",
-"name": "lh_amenities",
+"name": "lh_amenities.charging_station",
 "crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
 "features": [
 { "type": "Feature", "properties": { "element": "node", "id": 3064630121, "amenity": "charging_station", "authentication:none": null, "capacity": null, "charging_station:output": null, "description": null, "network": null, "opening_hours": null, "operator": null, "operator:email": null, "owner:ref:FR:SIREN": null, "payment:credit_cards": null, "ref:EU:EVSE": null, "start_date": null, "wheelchair": null, "fee": null, "operator:phone": null, "operator:wikidata": null, "reservation": null, "socket:type2": null, "socket:typee": null, "access": null, "access:disabled": null, "brand": null, "brand:wikidata": null, "name": null, "addr:city": null, "addr:country": null, "addr:housenumber": null, "addr:postcode": null, "addr:street": null, "socket:chademo": null, "socket:chademo:output": null, "socket:type2:output": null, "socket:type2_combo": null, "socket:type2_combo:output": null, "email": null, "phone": null, "ref": null, "socket:type2_cable": null, "check_date": null, "source": null, "level": null, "fixme": null, "survey:date": null, "motorcar": null, "owner": null }, "geometry": { "type": "Point", "coordinates": [ 0.1115751, 49.5210725 ] } },
