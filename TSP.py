@@ -157,19 +157,21 @@ class Instance:
                 if self.dist[siid][sjid] <= toHubDist:
                     n2ns[si].append(sj)
                 
-        # Find hub candidates, IMPORTANT: it is crucial to sort them
-        # by degree in a decending order, this way the selection will 
-        # be much more suitable for the end result (reduced graph)
-        candidates = sorted(n2ns.items(), key=lambda item: -len(item[1]))
-        for n, neighbors in candidates:
-            if len(neighbors) >= hubdeg and n not in hubs:
-                hubs.append(n)
                 
                 
         Instance.visualize_hubs(n2ns, hubs, name="(All potential hubs)")
         
         noChange = False
         while noChange == False:        # reduce iteratively until g converges to a given state.
+            # Find hub candidates, IMPORTANT: it is crucial to sort them
+            # by degree in a decending order, this way the selection will 
+            # be much more suitable for the end result (reduced graph)
+            hubs:list[Sommet] = []
+            candidates = sorted(n2ns.items(), key=lambda item: -len(item[1]))
+            for n, neighbors in candidates:
+                if len(neighbors) >= hubdeg and n not in hubs:
+                    hubs.append(n)
+            
             noChange = False
             # reduce the overlaps 
             to_remove = set()
@@ -178,6 +180,7 @@ class Instance:
                     siid, sjid= si.getId(),sj.getId()
                     
                     if siid == sjid or self.dist[siid][sjid] > toHubDist:
+                        noChange = True
                         continue
 
                     l1 = len(n2ns[si])
@@ -187,18 +190,28 @@ class Instance:
                     # desending order, prefer pushing to si's cluster first
                     # thus the >= rather then just > is super important (3 hours for just that !)
                     if l1 >= l2:
+                        overlap = list(set(n2ns[si]) & set(n2ns[sj]))
                         n2ns[si] = list(set(n2ns[si]) | set(n2ns[sj]))
-                        to_remove.add(sj)
-                    else: 
+                        #to_remove.add(sj)
+                        for n in overlap: 
+                            noChange = False
+                            n2ns[sj].remove(n)
+                    else:
+                        overlap = list(set(n2ns[si]) & set(n2ns[sj])) 
                         n2ns[sj] = list(set(n2ns[sj]) | set(n2ns[si]))
-                        to_remove.add(si)
-
+                        #to_remove.add(si)
+                        for n in overlap: 
+                            noChange = False
+                            n2ns[sj].remove(n)
+                    """
                     if si in n2ns[si]: n2ns[si].remove(si)
                     if sj in n2ns[sj]: n2ns[sj].remove(sj)
-
-            
+                    """
+                    
+            """
             noChange =  len(to_remove) == 0
             hubs = [h for h in hubs if h not in to_remove]
+            """
 
         
         Instance.visualize_hubs(n2ns, hubs, name="(Reduced hubs set - merging)")     
@@ -273,12 +286,33 @@ class Instance:
             print()
 
     def plot (self):
+       
+
+        for i in range(self.nb_sommets):
+            s = self.sommets[i]
+            sx, sy = s.getX(), s.getY()
+            if i == 0: 
+                plot_xlim = sx
+                plot_ylim = sy
+                plot_xmin = sx
+                plot_ymin = sy
+
+            if sx > plot_xlim:
+                plot_xlim = sx+1
+            if sy > plot_ylim:
+                plot_ylim = sy+1
+            
+            if sx < plot_xmin:
+                plot_xmin = sx - 1 
+            if sy < plot_ymin:
+                plot_ymin = sy - 1
+
         plt.figure()
         plt.title('instance {}: {} sommets'.format(self.name, self.nb_sommets))
         plt.xlabel('X')
         plt.ylabel('Y')
-        plt.xlim(-1,101)
-        plt.ylim(-1,101)
+        plt.xlim(plot_xmin,plot_xlim)
+        plt.ylim(plot_ymin,plot_ylim)
         x = [elt.getX() for elt in self.sommets]
         y = [elt.getY() for elt in self.sommets]
         plt.scatter(x,y)
@@ -320,12 +354,30 @@ class Solution:
         print('solution \'{}\': {} -> val = {:.6f} temps = {:.6f} s'.format(self.name, self.sequence, self.valeur, self.temps))
 
     def plot (self):
+        for i in range(self.instance.nb_sommets):
+            s = self.instance.sommets[i]
+            sx, sy = s.getX(), s.getY()
+            if i == 0: 
+                plot_xlim = sx
+                plot_ylim = sy
+                plot_xmin = sx
+                plot_ymin = sy
+
+            if sx > plot_xlim:
+                plot_xlim = sx+1
+            if sy > plot_ylim:
+                plot_ylim = sy+1
+            
+            if sx < plot_xmin:
+                plot_xmin = sx - 1 
+            if sy < plot_ymin:
+                plot_ymin = sy - 1
         plt.figure()
         plt.title('\'{}\': valeur = {:.2f} en {:.2f} s'.format(self.name, self.valeur, self.temps))
         plt.xlabel('X')
         plt.ylabel('Y')
-        plt.xlim(-1,101)
-        plt.ylim(-1,101)
+        plt.xlim(plot_xmin,plot_xlim)
+        plt.ylim(plot_ymin,plot_ylim)
         x = [self.instance.sommets[index].getX() for index in self.sequence]
         y = [self.instance.sommets[index].getY() for index in self.sequence]
         x.append(x[0])
@@ -708,9 +760,33 @@ if __name__ == '__main__':
     print(len(poi_xy_tuples))
 
     nodes = [Sommet(p[0], p[1]) for p in poi_xy_tuples]
-    inst = Instance("Le Havre's {amenity} network", len(poi_xy_tuples), nodes)
-    for n in nodes: print(n.str())
+    inst = Instance(f"Le Havre's {amenity} network", len(poi_xy_tuples), nodes)
+    inst.computeDistances()
     
+    inst.plot()
+    plt.show()
+
+    proportion = 15
+    print(f"[metrics._main_]: Hub to Node radius set to {proportion}% of delta(mindist, maxdist).")
+    hoginst = inst.redhog(proportion)
+  
+
+    # generation heuristique des solutions
+    heur = Heuristiques(hoginst)
+ 
+    
+    methodes = [heur.compute_triviale, heur.compute_random, heur.compute_nearest,heur.ilp, heur.multistart, heur.multistart_LS_2Opt, heur.multistart_LS_Swap, heur.multistart_LS_OrOpt, heur.recherche_tabou]
+    for m in methodes:
+        print(f"\n[metrics._main_]: About to run the {m.__name__} strategy.")
+        debut = time.time()
+        sol:Solution = m()
+        duree = time.time() - debut
+        sol.setTemps(duree)
+        sol.affiche()
+        sol.plot()
+        print('evolution = ', heur.evolution)
+        if len(heur.evolution) > 0:
+            heur.plot_evo()
 
     """
     random.seed(0)
