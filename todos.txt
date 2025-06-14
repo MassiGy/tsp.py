@@ -19,4 +19,5 @@ donc peut être c'est le fait que T atteint T_MIN ?
 - draw the point on the map (done)
 - add a debug mode for the local instance files. (done)
 - Update the logs. (done)
-- write the report.
+- write the report. (done)
+- correct typos on the report.
