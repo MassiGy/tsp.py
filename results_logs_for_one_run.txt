@@ -1,0 +1,10 @@
+strategy,distsum(meters),computation_time(seconds)
+triviale,46382.203916,0.000041
+random,52973.870552,0.000087
+nearest neighbour,27500.991510,0.000113
+Integer LP,18820.263736,3.006391
+Multistart,27636.350471,0.229359
+Multistart_LS_2Opt,26124.370674,0.208783
+Multistart_LS_Swap,28593.742634,0.437803
+Multistart_LS_OrOpt,30533.179135,0.288265
+Recherche Tabou,29535.617008,1.518388

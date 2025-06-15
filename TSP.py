@@ -340,7 +340,11 @@ class Solution:
         for i in range(-1, len(self.sequence)-1):
             val += self.instance.dist[self.sequence[i]][self.sequence[i+1]]
         self.valeur = val
-        
+
+    def csv_str(self) -> str:
+        # this is useful for our plot_results.py script
+        return "{},{:.6f},{:.6f}".format(self.name, self.valeur, self.temps)
+
     def affiche (self):
         print('solution \'{}\': {} -> val = {:.6f} temps = {:.6f} s'.format(self.name, self.sequence, self.valeur, self.temps))
 
@@ -390,10 +394,10 @@ class Heuristiques:
     def plot_evo (self):
         plt.figure()
         plt.title('evolution')
-        plt.xlabel('temps (s)')
-        plt.ylabel('valeur')
+        plt.xlabel('time (s)')
+        plt.ylabel('distsum (km)')
         x = [elt[0] for elt in self.evolution]
-        y = [elt[1] for elt in self.evolution]
+        y = [elt[1]/1000 for elt in self.evolution]
         plt.plot(x,y, marker='o')
         plt.grid(True)
         plt.show()
@@ -750,6 +754,7 @@ if __name__ == '__main__':
 
         # Plot street network (light grey) + POIs (red dots)
         print("[metrics._main_]: Ploting map with all POIs...")
+        """
         fig, ax = ox.plot_graph(
             G_proj, show=False, close=False,
             bgcolor='white', node_color='lightgrey', edge_color='lightgrey',
@@ -762,7 +767,7 @@ if __name__ == '__main__':
         ax.set_title(f"Le Havre's {amenity} network", fontsize=14)
         plt.show()
     
-
+        """
 
 
         # Convert the amenities coordinates to a list of points.
@@ -785,10 +790,13 @@ if __name__ == '__main__':
         proportion = 12
         print(f"[metrics._main_]: Hub to Node radius set to {proportion}% of delta(mindist, maxdist).")
         hoginst = inst.redhog(proportion, debugplot=False)
+        hoginst.plot()
+        plt.show()
         
     
         # Plot street network (light grey) + reduced set of POIs (red dots)
         print("[metrics._main_]: Ploting map with the reduced set of POIs (after redhog routine)...")
+       
         fig, ax = ox.plot_graph(
             G_proj, show=False, close=False,
             bgcolor='white', node_color='lightgrey', edge_color='lightgrey',
@@ -800,7 +808,7 @@ if __name__ == '__main__':
 
         ax.set_title(f"Le Havre's {amenity} network (redhoged)", fontsize=14)
         plt.show()
-    
+        
 
 
 
@@ -811,15 +819,16 @@ if __name__ == '__main__':
         # wave1: with no nb_iter arg and no evolution tracking
         methodes = [heur.compute_triviale, heur.compute_random, heur.compute_nearest, heur.ilp]
         for m in methodes:
-            print(f"\n[metrics._main_]: About to run the {m.__name__} strategy.")
+            #print(f"\n[metrics._main_]: About to run the {m.__name__} strategy.")
             debut = time.time()
             sol:Solution = m()
             duree = time.time() - debut
             sol.setTemps(duree)
-            sol.affiche()
+            print(sol.csv_str())
             
             # plot the graph
-            print("[metrics._main_]: Ploting results on to the map...")
+            #print("[metrics._main_]: Ploting results on to the map...")
+            """
             fig, ax = ox.plot_graph(
             G_proj, show=False, close=False,
             bgcolor='white', node_color='lightgrey', edge_color='lightgrey',
@@ -847,19 +856,21 @@ if __name__ == '__main__':
             # set title and show the plot
             ax.set_title(f"TSP on Le Havre's {amenity} network\nstrategy={m.__name__}, distsum={"{:.3f}".format(sol.getValeur()/1000)} km, time={"{:.6f}".format(duree)} seconds", fontsize=10)
             plt.show()
+            """
 
         # wave2: with nb_iter arg and evolution tracking
         methodes = [heur.multistart, heur.multistart_LS_2Opt, heur.multistart_LS_Swap, heur.multistart_LS_OrOpt, heur.recherche_tabou]
         for m in methodes:
-            print(f"\n[metrics._main_]: About to run the {m.__name__} strategy.")
+            #print(f"\n[metrics._main_]: About to run the {m.__name__} strategy.")
             debut = time.time()
             sol:Solution = m(nb_iter=lenPOIs*lenPOIs)
             duree = time.time() - debut
             sol.setTemps(duree)
-            sol.affiche()
+            print(sol.csv_str())
         
             # plot the graph
-            print("[metrics._main_]: Ploting results on to the map...")
+            #print("[metrics._main_]: Ploting results on to the map...")
+            """
             fig, ax = ox.plot_graph(
             G_proj, show=False, close=False,
             bgcolor='white', node_color='lightgrey', edge_color='lightgrey',
@@ -887,9 +898,10 @@ if __name__ == '__main__':
             # set title and show the plot
             ax.set_title(f"TSP on Le Havre's {amenity} network\nstrategy={m.__name__}, distsum={"{:.3f}".format(sol.getValeur()/1000)} km, time={"{:.6f}".format(duree)} seconds", fontsize=10)
             plt.show()
+            """
 
 
-
-            print('evolution = ', heur.evolution)
+            #print('evolution = ', heur.evolution)
             if len(heur.evolution) > 0:
-                heur.plot_evo()
+                #heur.plot_evo()
+                continue

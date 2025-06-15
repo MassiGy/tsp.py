@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-df = pd.read_csv("normalized_logs_as_csv.txt")
+df = pd.read_csv("results_logs_for_one_run.txt")
 
 # Multiply the distsum by -1 to reverse the y-axis
 # devide by 1000 to get a scale of kilometers
