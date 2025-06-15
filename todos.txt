@@ -23,3 +23,8 @@ donc peut être c'est le fait que T atteint T_MIN ?
 - check if all the graphs are correct (maybe correct the evolution graphs, make them be in km and change valeur by distsum) (done)
 - correct typos on the report. (done)
 - refactor the code and submit the handout.
+
+
+
+# improvements
+- relax the redhog routine.
