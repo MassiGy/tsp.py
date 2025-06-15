@@ -3,7 +3,7 @@
 ### Members: 
 
 - Massiles GHERNAOUT.
-- Amine AIT MOKHTAR.
+- Amine AIT MOKHTAR. (read Note below).
 
 ### Note: 
 Me, Massiles, I'll take charge of the TSP w/ Hubs variant. Meanwhile, Amine will implement another variant.The reason for this dispatch is due to the fact that we couldn't meet to work together during these last weeks as a duo.
