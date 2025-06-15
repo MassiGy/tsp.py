@@ -122,7 +122,6 @@ class Instance:
 
     # reduce to hubs only graph
     def redhog(self, hubradius, debugplot=True):
-        
         print(f"[metrics.redhog]: Reduce graph to hubs only graph, input graph # nodes={self.nb_sommets}")
         print(f"[metrics.redhog]: maxdist={self.maxdist}, mindist={self.mindist}")
         
@@ -131,107 +130,104 @@ class Instance:
         
         hubdeg = 2
         print(f"[metrics.redhog]: Hub Min Degree={hubdeg}")
-       
-        # these are the nodes that are not wihtin a concentration of nodes (no hubs nearby)
-        outliers: list[Sommet] = []
         
-        # node2nodes will keep track of all the nodes that are within a distance
-        # d < toHubDist of each node n
-        n2ns:dict[Sommet, list[Sommet]] = dict()
+        outliers: list[Sommet] = []
+        n2ns: dict[Sommet, list[Sommet]] = {}
 
-        # iterate through the distances
         for si in self.sommets:
             n2ns[si] = []
             for sj in self.sommets:
-                siid, sjid= si.getId(),sj.getId()
-                
-                if siid == sjid:
+                if si.getId() == sj.getId():
                     continue
-
-                if self.dist[siid][sjid] <= toHubDist:
+                if self.dist[si.getId()][sj.getId()] <= toHubDist:
                     n2ns[si].append(sj)
-                
-        # Find hub candidates, IMPORTANT: it is crucial to sort them
-        # by degree in a decending order, this way the selection will 
-        # be much more suitable for the end result (reduced graph)
+
         candidates = sorted(n2ns.items(), key=lambda item: -len(item[1]))
-        hubs:list[Sommet] = []
+        hubs: list[Sommet] = []
         for n, neighbors in candidates:
             if len(neighbors) >= hubdeg and n not in hubs:
                 hubs.append(n)
-                
-                
-        if debugplot: Instance.visualize_hubs(n2ns, hubs, name="(All potential hubs)")
-        
-        change = True
-        while change == True:        
-            # reduce overlaps iteratively until g converges to a given state.
 
-            to_remove = set()
-            for si in hubs:
-                l1 = len(n2ns[si])
-                siid = si.getId()
-                
-                for sj in hubs:
-                    sjid= sj.getId()
-                    
-                    if siid == sjid or self.dist[siid][sjid] > toHubDist:
+        if debugplot:
+            Instance.visualize_hubs(n2ns, hubs, name="(All potential hubs)")
+
+        # Iteratively resolve overlaps via cherry-picking
+        change = True
+        while change:
+            change = False
+            new_n2ns = {hub: set(n2ns[hub]) for hub in hubs}
+            hubs_to_remove = set()
+
+            for i in range(len(hubs)):
+                hi = hubs[i]
+                hi_id = hi.getId()
+                for j in range(i + 1, len(hubs)):
+                    hj = hubs[j]
+                    hj_id = hj.getId()
+
+                    if self.dist[hi_id][hj_id] > toHubDist:
                         continue
 
-                    l2 = len(n2ns[sj])
-                    # IMPORTANT! since our hubs are sorted by degree in a 
-                    # desending order, prefer pushing to si's cluster first
-                    # thus the >= rather then just > is super important (3 hours for just that !)
-                    if l1 >= l2:
-                        n2ns[si] = list(set(n2ns[si]) | set(n2ns[sj]))
-                        to_remove.add(sj)
-                    else: 
-                        n2ns[sj] = list(set(n2ns[sj]) | set(n2ns[si]))
-                        to_remove.add(si)
+                    overlap = set(n2ns[hi]).intersection(n2ns[hj])
+                    if not overlap:
+                        continue
 
-                    if si in n2ns[si]: n2ns[si].remove(si)
-                    if sj in n2ns[sj]: n2ns[sj].remove(sj)
+                    # Cherry-pick overlapping nodes
+                    for node in overlap:
+                        # Assign to the nearest hub
+                        dist_to_hi = self.dist[hi_id][node.getId()]
+                        dist_to_hj = self.dist[hj_id][node.getId()]
+                        if dist_to_hi <= dist_to_hj:
+                            new_n2ns[hi].add(node)
+                            if node in new_n2ns[hj]:
+                                new_n2ns[hj].remove(node)
+                        else:
+                            new_n2ns[hj].add(node)
+                            if node in new_n2ns[hi]:
+                                new_n2ns[hi].remove(node)
 
-            
-            change =  len(to_remove) != 0
-            hubs = [h for h in hubs if h not in to_remove]
+                        # If overlapping node is a hub itself — merge it
+                        if node in hubs:
+                            hubs_to_remove.add(node)
+                            new_n2ns[hi if dist_to_hi <= dist_to_hj else hj].update(n2ns[node])
 
-        
-        if debugplot: Instance.visualize_hubs(n2ns, hubs, name="(Reduced hubs set - merging)")     
-        
+                            # Also merge its connections
+                            del new_n2ns[node]
+
+                    change = True
+
+            # Remove merged hubs
+            hubs = [h for h in hubs if h not in hubs_to_remove]
+            n2ns = {hub: list(neighs) for hub, neighs in new_n2ns.items()}
+
+        if debugplot:
+            Instance.visualize_hubs(n2ns, hubs, name="(Reduced hubs set - overlap resolved)")
+
         print(f"[metrics.redhog]: # hubs in input graph={len(hubs)}")
 
-        hubsClustersNodes:list[Sommet] = hubs.copy()
+        hubsClustersNodes: list[Sommet] = hubs.copy()
         for n in hubs:
             hubsClustersNodes.extend(n2ns[n])
-        
-        
+
         hubsClustersNodes = set(hubsClustersNodes)
-        
-        outliers = list(set(self.sommets) - set(hubsClustersNodes))
+        outliers = list(set(self.sommets) - hubsClustersNodes)
         print(f"[metrics.redhog]: # outliers in input graph={len(outliers)}. About to add them to the reduced graph nodes list.")
         hubs.extend(outliers)
 
-
-        for i in range(len(hubs)):
-            # update the ids for the hubs
-            n = hubs[i]
+        for i, n in enumerate(hubs):
             n.setId(i)
 
+        if debugplot:
+            Instance.visualize_hubs(n2ns, hubs, name="(Hubs+Outliers - Final reduced Graph)")
 
-        if debugplot: Instance.visualize_hubs(n2ns, hubs, name="(Hubs+Outliers - Final reduced Graph)")     
-            
-
-        # now that we have the hubs, create a new instance
-        # using those hubs as nodes
-        hoginst = Instance(str("redhog "+self.name), len(hubs), hubs)
+        hoginst = Instance(str("redhog " + self.name), len(hubs), hubs)
         hoginst.computeDistances()
         print(f"[metrics.redhog]: Reduced graph # nodes={len(hubs)}")
 
-        # show all our visualizations
         plt.show()
 
         return hoginst
+
    
    
     @classmethod
@@ -673,7 +669,7 @@ class Heuristiques:
 
 
 if __name__ == '__main__':
-    use_osmnx_data = True
+    use_osmnx_data = False
     
     
     if not use_osmnx_data:
